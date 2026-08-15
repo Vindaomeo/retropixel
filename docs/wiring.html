@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pixeldisplay — Verdrahtungsplan 8×8 WS2812B am Nano Every</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#ffffff; --ink:#16181d; --muted:#5b6270;
+    --line:#dfe3ea; --accent:#2f5fd0;
+    --pwr:#d0342c; --gnd:#2b2f38; --data:#1a8a6d; --warn:#b45309;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#14161a; --card:#1c1f26; --ink:#e9ecf1; --muted:#9aa3b2;
+           --line:#2c313b; --accent:#7aa2f7; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:32px 20px 64px;background:var(--bg);color:var(--ink);
+       font:15px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;}
+  .wrap{max-width:1000px;margin:0 auto}
+  h1{font-size:26px;margin:0 0 6px;letter-spacing:-.02em}
+  h2{font-size:19px;margin:38px 0 4px;letter-spacing:-.01em}
+  h3{font-size:15px;margin:22px 0 6px}
+  .sub{color:var(--muted);margin:0 0 28px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;
+        padding:20px 22px;margin:16px 0}
+  .card.fig{padding:14px}
+  svg{display:block;width:100%;height:auto}
+  table{border-collapse:collapse;width:100%;font-size:14px;margin:10px 0 4px}
+  th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+  th{font-weight:600;color:var(--muted);font-size:12.5px;text-transform:uppercase;
+     letter-spacing:.04em}
+  td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .verdict{border-left:4px solid var(--pwr);background:color-mix(in srgb,var(--pwr) 7%,transparent);
+           padding:16px 20px;border-radius:0 10px 10px 0;margin:20px 0}
+  .verdict strong{color:var(--pwr)}
+  .ok{border-left-color:var(--data);background:color-mix(in srgb,var(--data) 8%,transparent)}
+  .ok strong{color:var(--data)}
+  .warn{border-left-color:var(--warn);background:color-mix(in srgb,var(--warn) 8%,transparent)}
+  .warn strong{color:var(--warn)}
+  code{font:13px ui-monospace,SFMono-Regular,Menlo,monospace;
+       background:color-mix(in srgb,var(--ink) 7%,transparent);padding:1px 5px;border-radius:4px}
+  ul{margin:8px 0 0;padding-left:20px} li{margin:4px 0}
+  .legend{display:flex;gap:20px;flex-wrap:wrap;font-size:13px;color:var(--muted);
+          margin:2px 0 12px;padding-left:4px}
+  .legend span{display:inline-flex;align-items:center;gap:7px}
+  .sw{width:18px;height:3px;border-radius:2px;display:inline-block}
+  .foot{color:var(--muted);font-size:13px;margin-top:36px;border-top:1px solid var(--line);
+        padding-top:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Verdrahtungsplan — 8×8 WS2812B am Arduino Nano Every</h1>
+<p class="sub">Projekt <code>pixeldisplay</code> · Datenleitung D6 → DIN · Stand August 2026</p>
+
+<div class="verdict">
+  <strong>Kurze Antwort: nein.</strong> 64 WS2812B ziehen bei Vollweiß rund
+  <strong>3,8 A</strong>. Ein USB-2.0-Port liefert 500 mA — das ist Faktor 8 zu wenig.
+  Für <em>volle</em> Helligkeit brauchst du ein eigenes 5-V-Netzteil.
+  Für <em>gedimmten</em> Betrieb reicht USB: bis Helligkeit ≈ 30/255 bleibst du
+  auch im ungünstigsten Fall (alles weiß) innerhalb der 500 mA.
+  Genau darauf ist die Firmware im Auslieferungszustand eingestellt.
+</div>
+
+<h2>Das Strombudget</h2>
+
+<h3>Was das Panel zieht</h3>
+<table>
+  <thead><tr><th>Zustand</th><th class="num">pro LED</th><th class="num">64 LEDs</th></tr></thead>
+  <tbody>
+    <tr><td>Alles aus (Ruhestrom der Controller-ICs)</td><td class="num">≈ 1 mA</td><td class="num">64 mA</td></tr>
+    <tr><td>Eine Farbe voll (z. B. reines Rot)</td><td class="num">≈ 20 mA</td><td class="num">1,28 A</td></tr>
+    <tr><td>Vollweiß — Datenblatt, 3 × 20 mA</td><td class="num">60 mA</td><td class="num">3,84 A</td></tr>
+    <tr><td>Vollweiß — gemessen, „Typ B“ (PJRC)</td><td class="num">52,5 mA</td><td class="num">3,36 A</td></tr>
+    <tr><td>Vollweiß — gemessen, „Typ A“ (PJRC)</td><td class="num">33,5 mA</td><td class="num">2,14 A</td></tr>
+  </tbody>
+</table>
+<p style="color:var(--muted);font-size:13.5px;margin:6px 0 0">
+  Die Streuung ist real: PJRC hat zwei Chargen gemessen, beide als „WS2812B“ verkauft,
+  und kam auf 33,5 mA bzw. 52,5 mA pro LED. Rechne mit dem Datenblattwert, dann bist du
+  auf der sicheren Seite.
+</p>
+
+<h3>Was USB liefert</h3>
+<table>
+  <thead><tr><th>Quelle</th><th class="num">Budget</th><th class="num">für LEDs</th><th class="num">Vollweiß möglich</th><th class="num">max. Helligkeit</th></tr></thead>
+  <tbody>
+    <tr><td>USB 2.0 Port</td><td class="num">500 mA</td><td class="num">470 mA</td><td class="num">7 von 64</td><td class="num">31/255</td></tr>
+    <tr><td>USB 3.0 Port</td><td class="num">900 mA</td><td class="num">870 mA</td><td class="num">14 von 64</td><td class="num">58/255</td></tr>
+    <tr><td>5-V-Netzteil ≥ 4 A</td><td class="num">4000 mA</td><td class="num">4000 mA</td><td class="num">alle 64</td><td class="num">255/255</td></tr>
+  </tbody>
+</table>
+<p style="color:var(--muted);font-size:13.5px;margin:6px 0 0">
+  „für LEDs“ = Budget minus ≈ 30 mA, die der Nano Every selbst braucht.
+  „max. Helligkeit“ ist der Wert, bei dem selbst ein komplett weißes Bild noch im Budget bleibt.
+</p>
+
+<h2>Variante 1 — nur USB</h2>
+<p style="margin:0 0 10px;color:var(--muted)">
+  Für den Schreibtisch, zum Entwickeln, für gedimmte Anzeigen. Zwei Drähte weniger.
+</p>
+
+<div class="legend">
+  <span><i class="sw" style="background:#1a8a6d"></i> Daten</span>
+  <span><i class="sw" style="background:#d0342c"></i> +5 V</span>
+  <span><i class="sw" style="background:#2b2f38"></i> GND</span>
+</div>
+
+<div class="card fig">
+<svg viewBox="0 0 900 330" role="img" aria-label="Verdrahtung nur über USB">
+  <defs>
+    <style>
+      .box{fill:#ffffff;stroke:#2b2f38;stroke-width:2}
+      .boxalt{fill:#f2f4f8;stroke:#2b2f38;stroke-width:2}
+      .lbl{font:600 13px ui-sans-serif,system-ui,sans-serif;fill:#16181d}
+      .lbls{font:11.5px ui-sans-serif,system-ui,sans-serif;fill:#5b6270}
+      .pin{font:600 11.5px ui-monospace,Menlo,monospace;fill:#16181d}
+      .wD{stroke:#1a8a6d;stroke-width:3;fill:none;stroke-linecap:round}
+      .wP{stroke:#d0342c;stroke-width:3;fill:none;stroke-linecap:round}
+      .wG{stroke:#2b2f38;stroke-width:3;fill:none;stroke-linecap:round}
+      .led{fill:#e7ebf2;stroke:#aab3c2;stroke-width:1}
+    </style>
+  </defs>
+
+  <!-- PC / USB -->
+  <rect class="boxalt" x="18" y="120" width="112" height="66" rx="8"/>
+  <text class="lbl" x="74" y="148" text-anchor="middle">PC</text>
+  <text class="lbls" x="74" y="166" text-anchor="middle">USB 2.0 / 3.0</text>
+  <path class="wG" d="M130 153 H 218"/>
+  <text class="lbls" x="174" y="144" text-anchor="middle">USB-Kabel</text>
+
+  <!-- Nano -->
+  <rect class="box" x="218" y="60" width="182" height="196" rx="8"/>
+  <text class="lbl" x="309" y="86" text-anchor="middle">Arduino Nano Every</text>
+  <text class="lbls" x="309" y="104" text-anchor="middle">5 V Logik — kein</text>
+  <text class="lbls" x="309" y="119" text-anchor="middle">Levelshifter nötig</text>
+  <text class="pin" x="392" y="153" text-anchor="end">D6</text>
+  <text class="pin" x="392" y="199" text-anchor="end">5V</text>
+  <text class="pin" x="392" y="238" text-anchor="end">GND</text>
+
+  <!-- Widerstand -->
+  <path class="wD" d="M400 148 H 470"/>
+  <rect x="470" y="136" width="56" height="24" rx="4" fill="#ffffff" stroke="#1a8a6d" stroke-width="2"/>
+  <text class="pin" x="498" y="152" text-anchor="middle" fill="#1a8a6d">330 Ω</text>
+  <path class="wD" d="M526 148 H 640"/>
+  <text class="lbls" x="498" y="176" text-anchor="middle">nah am Panel</text>
+
+  <!-- 5V + GND -->
+  <path class="wP" d="M400 194 H 640"/>
+  <path class="wG" d="M400 233 H 640"/>
+
+  <!-- Panel -->
+  <rect class="box" x="640" y="60" width="222" height="196" rx="8"/>
+  <text class="lbl" x="751" y="84" text-anchor="middle">8×8 WS2812B</text>
+  <text class="pin" x="650" y="152">DIN</text>
+  <text class="pin" x="650" y="198">+5V</text>
+  <text class="pin" x="650" y="237">GND</text>
+  <g>
+    <!-- 8x8 Punktraster -->
+    <g transform="translate(700,96)">
+      <g id="rowA">
+        <circle class="led" cx="0"  cy="0" r="5.5"/><circle class="led" cx="19" cy="0" r="5.5"/>
+        <circle class="led" cx="38" cy="0" r="5.5"/><circle class="led" cx="57" cy="0" r="5.5"/>
+        <circle class="led" cx="76" cy="0" r="5.5"/><circle class="led" cx="95" cy="0" r="5.5"/>
+        <circle class="led" cx="114" cy="0" r="5.5"/><circle class="led" cx="133" cy="0" r="5.5"/>
+      </g>
+      <use href="#rowA" y="19"/><use href="#rowA" y="38"/><use href="#rowA" y="57"/>
+      <use href="#rowA" y="76"/><use href="#rowA" y="95"/><use href="#rowA" y="114"/>
+      <use href="#rowA" y="133"/>
+    </g>
+  </g>
+
+  <!-- Hinweis -->
+  <rect x="218" y="278" width="644" height="42" rx="7" fill="#fef3e2" stroke="#b45309" stroke-width="1.5"/>
+  <text class="lbl" x="234" y="296" fill="#b45309">⚠  Nur mit gedeckelter Helligkeit</text>
+  <text class="lbls" x="234" y="312" fill="#7c4a08">MX_BRIGHTNESS_DEFAULT ≤ 30 und MX_MAX_MILLIAMPS 450 müssen gesetzt bleiben.</text>
+</svg>
+</div>
+
+<h2>Variante 2 — externes 5-V-Netzteil <span style="color:var(--data);font-size:14px">(empfohlen)</span></h2>
+<p style="margin:0 0 10px;color:var(--muted)">
+  Volle Helligkeit, stabile Farben, kein Risiko für den USB-Port des Rechners.
+  Der Nano bleibt am USB — er braucht es ohnehin für die Daten.
+</p>
+
+<div class="card fig">
+<svg viewBox="0 0 900 470" role="img" aria-label="Verdrahtung mit externem 5V-Netzteil">
+  <defs>
+    <style>
+      .box2{fill:#ffffff;stroke:#2b2f38;stroke-width:2}
+      .boxalt2{fill:#f2f4f8;stroke:#2b2f38;stroke-width:2}
+      .lbl2{font:600 13px ui-sans-serif,system-ui,sans-serif;fill:#16181d}
+      .lbls2{font:11.5px ui-sans-serif,system-ui,sans-serif;fill:#5b6270}
+      .pin2{font:600 11.5px ui-monospace,Menlo,monospace;fill:#16181d}
+      .wD2{stroke:#1a8a6d;stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round}
+      .wP2{stroke:#d0342c;stroke-width:3.5;fill:none;stroke-linecap:round;stroke-linejoin:round}
+      .wG2{stroke:#2b2f38;stroke-width:3.5;fill:none;stroke-linecap:round;stroke-linejoin:round}
+      .led2{fill:#e7ebf2;stroke:#aab3c2;stroke-width:1}
+      .jn{fill:#2b2f38}
+      .jnp{fill:#d0342c}
+    </style>
+  </defs>
+
+  <!-- PC -->
+  <rect class="boxalt2" x="18" y="90" width="112" height="72" rx="8"/>
+  <text class="lbl2" x="74" y="114" text-anchor="middle">PC</text>
+  <text class="lbls2" x="74" y="131" text-anchor="middle">USB: Daten</text>
+  <text class="lbls2" x="74" y="146" text-anchor="middle">+ Nano-Strom</text>
+  <path class="wG2" d="M130 126 H 210"/>
+
+  <!-- Nano -->
+  <rect class="box2" x="210" y="40" width="182" height="180" rx="8"/>
+  <text class="lbl2" x="301" y="66" text-anchor="middle">Arduino Nano Every</text>
+  <text class="lbls2" x="301" y="84" text-anchor="middle">wird vom USB versorgt</text>
+  <text class="pin2" x="384" y="128" text-anchor="end">D6</text>
+  <text class="pin2" x="384" y="166" text-anchor="end">5V</text>
+  <text class="pin2" x="384" y="204" text-anchor="end">GND</text>
+
+  <!-- 5V-Pin bleibt frei -->
+  <g stroke="#b45309" stroke-width="2.5" stroke-linecap="round">
+    <path d="M400 156 l 16 16"/><path d="M416 156 l -16 16"/>
+  </g>
+  <text class="lbls2" x="424" y="169" fill="#b45309">5V-Pin frei lassen</text>
+
+  <!-- Daten -->
+  <path class="wD2" d="M392 123 H 452"/>
+  <rect x="452" y="111" width="56" height="24" rx="4" fill="#ffffff" stroke="#1a8a6d" stroke-width="2"/>
+  <text class="pin2" x="480" y="127" text-anchor="middle" fill="#1a8a6d">330 Ω</text>
+  <path class="wD2" d="M508 123 H 636"/>
+
+  <!-- Panel -->
+  <rect class="box2" x="636" y="40" width="222" height="196" rx="8"/>
+  <text class="lbl2" x="747" y="64" text-anchor="middle">8×8 WS2812B</text>
+  <text class="pin2" x="646" y="127">DIN</text>
+  <text class="pin2" x="646" y="170">+5V</text>
+  <text class="pin2" x="646" y="209">GND</text>
+  <g transform="translate(696,86)">
+    <g id="rowB">
+      <circle class="led2" cx="0"  cy="0" r="5.5"/><circle class="led2" cx="19" cy="0" r="5.5"/>
+      <circle class="led2" cx="38" cy="0" r="5.5"/><circle class="led2" cx="57" cy="0" r="5.5"/>
+      <circle class="led2" cx="76" cy="0" r="5.5"/><circle class="led2" cx="95" cy="0" r="5.5"/>
+      <circle class="led2" cx="114" cy="0" r="5.5"/><circle class="led2" cx="133" cy="0" r="5.5"/>
+    </g>
+    <use href="#rowB" y="19"/><use href="#rowB" y="38"/><use href="#rowB" y="57"/>
+    <use href="#rowB" y="76"/><use href="#rowB" y="95"/><use href="#rowB" y="114"/>
+    <use href="#rowB" y="133"/>
+  </g>
+
+  <!-- Netzteil -->
+  <rect class="boxalt2" x="210" y="352" width="182" height="76" rx="8"/>
+  <text class="lbl2" x="301" y="380" text-anchor="middle">Netzteil 5 V DC</text>
+  <text class="lbls2" x="301" y="398" text-anchor="middle">≥ 4 A für volle Helligkeit</text>
+  <text class="pin2" x="384" y="418" text-anchor="end">+ / −</text>
+
+  <!-- 5V-Rail: PSU -> Panel -->
+  <path class="wP2" d="M392 376 H 556 V 165 H 636"/>
+  <!-- GND-Rail: PSU -> Panel -->
+  <path class="wG2" d="M392 410 H 600 V 204 H 636"/>
+  <!-- Nano GND -> gemeinsame Masse -->
+  <path class="wG2" d="M392 204 H 440 V 410"/>
+  <circle class="jn" cx="440" cy="410" r="5"/>
+
+  <!-- Elko zwischen den Rails -->
+  <path class="wP2" d="M556 286 H 578"/>
+  <path class="wG2" d="M600 286 H 586"/>
+  <line x1="578" y1="270" x2="578" y2="302" stroke="#d0342c" stroke-width="3.5" stroke-linecap="round"/>
+  <line x1="586" y1="270" x2="586" y2="302" stroke="#2b2f38" stroke-width="3.5" stroke-linecap="round"/>
+  <circle class="jnp" cx="556" cy="286" r="5"/>
+  <circle class="jn" cx="600" cy="286" r="5"/>
+  <text class="lbls2" x="536" y="282" text-anchor="end">1000 µF / 10 V</text>
+  <text class="lbls2" x="536" y="297" text-anchor="end">Polung beachten</text>
+
+  <!-- Hinweis gemeinsame Masse -->
+  <rect x="46" y="248" width="322" height="34" rx="7" fill="#e8f6f1" stroke="#1a8a6d" stroke-width="1.5"/>
+  <text class="lbl2" x="62" y="270" fill="#0f6b53">✓  GND Nano + Netzteil + Panel verbinden</text>
+</svg>
+</div>
+
+<div class="verdict ok">
+  <strong>Warum die Masse zusammen muss:</strong> das Datensignal ist eine Spannung
+  <em>gegenüber GND</em>. Ohne gemeinsamen Bezugspunkt „sieht“ das Panel kein sauberes
+  High/Low — typisches Symptom sind wild flackernde oder gar keine LEDs, obwohl alles
+  richtig verkabelt aussieht. Das ist der mit Abstand häufigste Fehler bei diesem Aufbau.
+</div>
+
+<h2>Stückliste</h2>
+<table>
+  <thead><tr><th>Teil</th><th>Wert</th><th>Wozu</th></tr></thead>
+  <tbody>
+    <tr><td>Widerstand</td><td>330 Ω (220–470 Ω)</td><td>dämpft Reflexionen auf der Datenleitung, schützt den ersten LED-Eingang. Möglichst nah ans Panel.</td></tr>
+    <tr><td>Elko</td><td>1000 µF, ≥ 10 V</td><td>puffert Stromspitzen beim Farbwechsel, direkt an den Panel-Anschlüssen</td></tr>
+    <tr><td>Netzteil</td><td>5 V DC, ≥ 4 A</td><td>nur bei Variante 2. 4 A deckt Vollweiß mit Reserve.</td></tr>
+    <tr><td>Litze</td><td>≥ 0,5 mm² für 5 V/GND</td><td>bei 3,8 A fällt an dünnem Draht spürbar Spannung ab</td></tr>
+  </tbody>
+</table>
+
+<h2>Sechs Dinge, die schiefgehen</h2>
+<div class="card">
+<ul>
+  <li><strong>Panel-5V an den 5V-Pin des Nano, obwohl ein Netzteil dranhängt.</strong>
+      Dann speist das Netzteil über den Nano zurück in den USB-Port des Rechners.
+      Im Nano Every sitzt zwar eine Diode in diesem Pfad, aber verlass dich nicht darauf —
+      bei Variante 2 bleibt der 5V-Pin einfach frei.</li>
+  <li><strong>Masse vergessen.</strong> Siehe oben. Immer alle drei GND verbinden.</li>
+  <li><strong>Helligkeit hochdrehen bei USB-Betrieb.</strong> Der Port geht in die
+      Strombegrenzung, die Spannung bricht ein, der Nano resettet mitten im Frame.
+      Sieht aus wie ein Software-Bug, ist aber Elektrik.</li>
+  <li><strong>Spannungsabfall am 5V-Pin.</strong> Bei USB-Speisung liegen am 5V-Pin
+      des Nano oft nur ≈ 4,7 V an. WS2812B laufen damit, aber Weiß wird leicht
+      gelbstichig und die Helligkeit sinkt.</li>
+  <li><strong>Am falschen Ende eingespeist.</strong> Manche Panels haben DIN/DOUT
+      beschriftet — die Datenleitung gehört an <code>DIN</code>. An <code>DOUT</code>
+      passiert schlicht nichts.</li>
+  <li><strong>Netzteil erst nach dem USB anstecken.</strong> Besser umgekehrt oder
+      gleichzeitig; der Elko dämpft den Einschaltstoß.</li>
+</ul>
+</div>
+
+<h2>Kein Levelshifter nötig</h2>
+<p>
+  Der Nano Every arbeitet mit <strong>5 V Logik</strong>. WS2812B wollen für ein sauberes
+  High mindestens 0,7 × V<sub>DD</sub> ≈ 3,5 V sehen — mit 5 V vom Pin passt das mit Reserve.
+  Das ist ein echter Vorteil gegenüber den 3,3-V-Boards der Nano-33-Familie, bei denen
+  man einen Pegelwandler oder den Trick mit der ersten LED als Opfer-Pixel braucht.
+</p>
+
+<h2>Passend zur Firmware</h2>
+<p>In <code>FW/mx8_config.h</code>:</p>
+<div class="card">
+<table>
+  <thead><tr><th>Aufbau</th><th><code>MX_BRIGHTNESS_DEFAULT</code></th><th><code>MX_MAX_MILLIAMPS</code></th></tr></thead>
+  <tbody>
+    <tr><td>USB 2.0, ohne Netzteil</td><td class="num">30</td><td class="num">450</td></tr>
+    <tr><td>USB 3.0, ohne Netzteil</td><td class="num">58</td><td class="num">850</td></tr>
+    <tr><td>Netzteil 5 V / 4 A</td><td class="num">255</td><td class="num">3800</td></tr>
+    <tr><td>Netzteil, aber Panel soll leise bleiben</td><td class="num">128</td><td class="num">2000</td></tr>
+  </tbody>
+</table>
+</div>
+<p style="color:var(--muted);font-size:13.5px">
+  <code>MX_MAX_MILLIAMPS</code> ist das härtere der beiden Limits: FastLED rechnet vor jedem
+  <code>show()</code> den Strombedarf des Bildes aus und regelt die Helligkeit automatisch
+  herunter, wenn es drüber wäre. Deshalb ist die Kombination „Helligkeit 40 + Limit 450 mA“
+  im Auslieferungszustand auch dann sicher, wenn ein Bild komplett weiß ist.
+</p>
+
+<p class="foot">
+  Messwerte je LED nach PJRC (zwei real vermessene WS2812B-Chargen), Nano-Every-Angaben
+  nach Arduino-Datenblatt ABX00028 und Arduino-Forum. Erzeugt für Projekt
+  <code>pixeldisplay</code>.
+</p>
+
+</div>
+</body>
+</html>
