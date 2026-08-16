@@ -5,7 +5,7 @@
  *  und macht sie ueber stdin/stdout ansprechbar. tests/test_protocol.py
  *  vergleicht die Ausgabe Byte fuer Byte mit der Python-Implementierung.
  *
- *  build:  cc -O2 -Wall -Wextra -I../firmware/matrix8x8_nano_every \
+ *  build:  cc -O2 -Wall -Wextra -I../FW \
  *              c_parser_test.c -o c_parser_test
  *  usage:  ./c_parser_test crc   <hex>
  *          ./c_parser_test build <cmd_dec> <hex_payload>

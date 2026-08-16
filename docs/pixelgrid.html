@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pixeldisplay — Bauanleitung Pixelgitter, 8,29 mm Raster</title>
+<style>
+  :root{ --bg:#f6f7f9; --card:#fff; --ink:#16181d; --muted:#5b6270; --line:#dfe3ea;
+         --accent:#2f5fd0; --warn:#b45309; --ok:#1a8a6d; }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#14161a; --card:#1c1f26; --ink:#e9ecf1; --muted:#9aa3b2; --line:#2c313b; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:32px 20px 64px;background:var(--bg);color:var(--ink);
+       font:15px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:1000px;margin:0 auto}
+  h1{font-size:26px;margin:0 0 6px;letter-spacing:-.02em}
+  h2{font-size:19px;margin:40px 0 8px;letter-spacing:-.01em;
+     padding-bottom:6px;border-bottom:1px solid var(--line)}
+  h3{font-size:15px;margin:24px 0 6px}
+  .sub{color:var(--muted);margin:0 0 26px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px 22px;margin:16px 0}
+  .card.fig{padding:14px}
+  svg{display:block;width:100%;height:auto}
+  table{border-collapse:collapse;width:100%;font-size:14px;margin:10px 0 4px}
+  th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-weight:600;color:var(--muted);font-size:12.5px;text-transform:uppercase;letter-spacing:.04em}
+  td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  td.k{font-weight:600;white-space:nowrap}
+  code{font:13px ui-monospace,SFMono-Regular,Menlo,monospace;
+       background:color-mix(in srgb,var(--ink) 7%,transparent);padding:1px 5px;border-radius:4px}
+  .note{border-left:4px solid var(--warn);background:color-mix(in srgb,var(--warn) 8%,transparent);
+        padding:14px 18px;border-radius:0 10px 10px 0;margin:18px 0}
+  .note strong{color:var(--warn)}
+  ol.steps{counter-reset:s;list-style:none;padding:0;margin:14px 0 0}
+  ol.steps>li{counter-increment:s;position:relative;padding:0 0 0 44px;margin:0 0 18px}
+  ol.steps>li::before{content:counter(s);position:absolute;left:0;top:1px;width:28px;height:28px;
+      border-radius:8px;background:var(--accent);color:#fff;font:600 14px ui-sans-serif,system-ui,sans-serif;
+      display:flex;align-items:center;justify-content:center}
+  ol.steps b{display:block;margin-bottom:2px}
+  ul{margin:6px 0 0;padding-left:20px} li{margin:4px 0}
+  .src{font-size:14px;padding-left:18px} .src li{margin:9px 0}
+  a{color:var(--accent)}
+  .foot{color:var(--muted);font-size:13px;margin-top:36px;border-top:1px solid var(--line);padding-top:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Pixelgitter für quadratische Pixel — Bauanleitung</h1>
+<p class="sub">WS2812B im <strong>8,29 mm Raster</strong> · Gitter und Diffusor als ein 3D-Druckteil</p>
+
+<h2>1 · Schichtaufbau</h2>
+
+<div class="card fig">
+<svg viewBox="-175 0 1275 470" role="img" aria-label="Querschnitt durch den Displayaufbau">
+  <defs>
+    <style>
+      .bx{stroke:#2b2f38;stroke-width:1.6}
+      .lbl{font:600 12.5px ui-sans-serif,system-ui,sans-serif;fill:#16181d}
+      .lbs{font:11.5px ui-sans-serif,system-ui,sans-serif;fill:#5b6270}
+      .dim{stroke:#2f5fd0;stroke-width:1.2;fill:none}
+      .dimt{font:600 11px ui-monospace,Menlo,monospace;fill:#2f5fd0}
+      .lead{stroke:#9aa3b2;stroke-width:1;stroke-dasharray:3 3;fill:none}
+    </style>
+    <marker id="ah" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+      <path d="M0 0 L7 3.5 L0 7 z" fill="#2f5fd0"/>
+    </marker>
+    <marker id="ah2" markerWidth="7" markerHeight="7" refX="1" refY="3.5" orient="auto">
+      <path d="M7 0 L0 3.5 L7 7 z" fill="#2f5fd0"/>
+    </marker>
+  </defs>
+
+  <g opacity="0.5">
+    <path d="M255 300 L215 200 L295 200 z" fill="#ffd24a"/>
+    <path d="M405 300 L365 200 L445 200 z" fill="#ffd24a"/>
+    <path d="M555 300 L515 200 L595 200 z" fill="#ffd24a"/>
+    <path d="M705 300 L665 200 L745 200 z" fill="#ffd24a"/>
+  </g>
+
+  <rect class="bx" x="140" y="150" width="680" height="18" fill="#3a4048" opacity="0.85"/>
+  <rect class="bx" x="140" y="172" width="680" height="12" fill="#eef1f6"/>
+  <g fill="#f4f6fa" stroke="#2b2f38" stroke-width="1.4">
+    <rect x="140" y="196" width="10" height="104"/>
+    <rect x="290" y="196" width="10" height="104"/>
+    <rect x="440" y="196" width="10" height="104"/>
+    <rect x="590" y="196" width="10" height="104"/>
+    <rect x="740" y="196" width="10" height="104"/>
+    <rect x="810" y="196" width="10" height="104"/>
+  </g>
+  <rect class="bx" x="140" y="300" width="680" height="14" fill="#1f6f3e"/>
+  <g fill="#ffffff" stroke="#8c93a1" stroke-width="1">
+    <rect x="240" y="289" width="30" height="12" rx="2"/>
+    <rect x="390" y="289" width="30" height="12" rx="2"/>
+    <rect x="540" y="289" width="30" height="12" rx="2"/>
+    <rect x="690" y="289" width="30" height="12" rx="2"/>
+  </g>
+  <rect class="bx" x="140" y="314" width="680" height="14" fill="#c9ced8"/>
+  <rect class="bx" x="140" y="328" width="680" height="20" fill="#5b6270"/>
+
+  <g>
+    <path class="lead" d="M138 159 L 90 148 L 40 148"/>
+    <text class="lbl" x="34" y="145" text-anchor="end">Frontscheibe</text>
+    <text class="lbs" x="34" y="161" text-anchor="end">PMMA rauchgrau 2 mm</text>
+
+    <path class="lead" d="M138 178 L 90 190 L 40 190"/>
+    <text class="lbl" x="34" y="187" text-anchor="end">Diffusordeckel</text>
+    <text class="lbs" x="34" y="203" text-anchor="end">0,6 mm — Teil des Drucks</text>
+
+    <path class="lead" d="M138 248 H 40"/>
+    <text class="lbl" x="34" y="245" text-anchor="end">Pixelgitter</text>
+    <text class="lbs" x="34" y="261" text-anchor="end">3D-Druck weiß, 8,0 mm hoch</text>
+
+    <path class="lead" d="M138 307 L 90 300 L 40 300"/>
+    <text class="lbl" x="34" y="297" text-anchor="end">LED-Panel</text>
+    <text class="lbs" x="34" y="313" text-anchor="end">WS2812B, 8,29 mm Raster</text>
+
+    <path class="lead" d="M138 321 L 90 345 L 40 345"/>
+    <text class="lbl" x="34" y="342" text-anchor="end">Trägerplatte</text>
+    <text class="lbs" x="34" y="358" text-anchor="end">Alu/PMMA 2 mm, plan</text>
+
+    <path class="lead" d="M138 338 L 90 385 L 40 385"/>
+    <text class="lbl" x="34" y="382" text-anchor="end">Rückwand</text>
+    <text class="lbs" x="34" y="398" text-anchor="end">Elektronik, Anschlüsse</text>
+  </g>
+
+  <g>
+    <path class="dim" d="M860 196 V 300" marker-start="url(#ah2)" marker-end="url(#ah)"/>
+    <text class="dimt" x="868" y="252">8,0 mm Gitterhöhe</text>
+    <path class="dim" d="M860 150 V 184" marker-start="url(#ah2)" marker-end="url(#ah)"/>
+    <text class="dimt" x="868" y="171">3 mm Front</text>
+  </g>
+  <g>
+    <path class="dim" d="M295 372 H 445" marker-start="url(#ah2)" marker-end="url(#ah)"/>
+    <text class="dimt" x="370" y="366" text-anchor="middle">8,29 mm Raster</text>
+    <path class="lead" d="M295 300 V 376"/><path class="lead" d="M445 300 V 376"/>
+  </g>
+
+  <rect x="140" y="398" width="680" height="34" rx="8" fill="#eef2fb" stroke="#2f5fd0" stroke-width="1.5"/>
+  <text class="lbl" x="158" y="420" fill="#24479c">Diffusordeckel und Gitter werden zusammen als ein Teil gedruckt.</text>
+</svg>
+</div>
+
+<h2>2 · Maße</h2>
+
+<table>
+  <thead><tr><th>Maß</th><th class="num">Wert</th><th>Anmerkung</th></tr></thead>
+  <tbody>
+    <tr><td class="k">Rastermaß</td><td class="num">8,286 mm</td><td>= 58 mm ÷ 7 Abstände, gemessen Mitte–Mitte über 8 LEDs</td></tr>
+    <tr><td class="k">Wandstärke</td><td class="num">1,0 mm</td><td>2 Perimeter à 0,5 mm Linienbreite</td></tr>
+    <tr><td class="k">Kammer, lichte Weite</td><td class="num">7,29 × 7,29 mm</td><td>das sichtbare Pixel</td></tr>
+    <tr><td class="k">Luft neben der LED</td><td class="num">1,14 mm je Seite</td><td>Gehäuse 5,0 mm (5050), Spalt 3,29 mm</td></tr>
+    <tr><td class="k">Gitterhöhe</td><td class="num">8,0 mm</td><td>40 Lagen à 0,2 mm · ±42° Blickwinkel</td></tr>
+    <tr><td class="k">Diffusordeckel</td><td class="num">0,6 mm</td><td>3 Lagen à 0,2 mm</td></tr>
+    <tr><td class="k">Bauteilhöhe gesamt</td><td class="num">8,6 mm</td><td>Gitter + Deckel</td></tr>
+  </tbody>
+</table>
+
+<h3>Außenmaß und Materialbedarf nach Panelgröße</h3>
+
+<table>
+  <thead><tr><th>Panel</th><th class="num">Kammerfeld</th><th class="num">Spanne Mitte–Mitte</th><th class="num">Material</th></tr></thead>
+  <tbody>
+    <tr><td class="k">8 × 8</td><td class="num">66,3 × 66,3 mm</td><td class="num">58 × 58 mm</td><td class="num">11,5 cm³ ≈ 14 g</td></tr>
+    <tr><td class="k">16 × 16</td><td class="num">132,6 × 132,6 mm</td><td class="num">124 × 124 mm</td><td class="num">44,3 cm³ ≈ 55 g</td></tr>
+  </tbody>
+</table>
+<p style="color:var(--muted);font-size:13.5px;margin:6px 0 0">
+  Kammerfeld = Anzahl × Rastermaß. Die Außenkontur des Bauteils richtet sich nach
+  dem PCB-Maß, nicht nach dem Kammerfeld — die Randkammern ragen sonst über die
+  Platine hinaus.
+</p>
+
+<h3>Gitterhöhe abweichend wählen</h3>
+
+<table>
+  <thead><tr><th>Höhe</th><th class="num">Lagen à 0,2 mm</th><th class="num">Blickwinkel</th><th>Einsatz</th></tr></thead>
+  <tbody>
+    <tr><td class="k">7,0 mm</td><td class="num">35</td><td class="num">± 46°</td><td>Display wird oft schräg gesehen</td></tr>
+    <tr><td class="k">8,0 mm</td><td class="num">40</td><td class="num">± 42°</td><td>Standard dieser Anleitung</td></tr>
+    <tr><td class="k">9,0 mm</td><td class="num">45</td><td class="num">± 39°</td><td>frontale Aufstellung</td></tr>
+  </tbody>
+</table>
+<p style="color:var(--muted);font-size:13.5px;margin:6px 0 0">
+  Blickwinkel = <code>arctan(7,29 / Höhe)</code>. Regel: Höhe ≈ Rastermaß.
+</p>
+
+<h2>3 · Gitter im Detail</h2>
+
+<div class="card fig">
+<svg viewBox="0 0 920 400" role="img" aria-label="Draufsicht auf das Pixelgitter">
+  <defs>
+    <style>
+      .w{fill:#dfe4ec;stroke:#2b2f38;stroke-width:1.2}
+      .c{fill:#fffdf0;stroke:#c8cedb;stroke-width:0.8}
+      .lbl2{font:600 12.5px ui-sans-serif,system-ui,sans-serif;fill:#16181d}
+      .lbs2{font:11.5px ui-sans-serif,system-ui,sans-serif;fill:#5b6270}
+      .dim2{stroke:#2f5fd0;stroke-width:1.2;fill:none}
+      .dimt2{font:600 11px ui-monospace,Menlo,monospace;fill:#2f5fd0}
+    </style>
+  </defs>
+  <!-- 4x4 Ausschnitt: Zelle 70 px = 8,29 mm, Wand 8,4 px = 1,0 mm -->
+  <g transform="translate(120,60)">
+    <rect class="w" x="0" y="0" width="287" height="287"/>
+    <g class="c">
+      <rect x="8"   y="8"   width="62" height="62"/><rect x="78"  y="8"   width="62" height="62"/>
+      <rect x="148" y="8"   width="62" height="62"/><rect x="218" y="8"   width="62" height="62"/>
+      <rect x="8"   y="78"  width="62" height="62"/><rect x="78"  y="78"  width="62" height="62"/>
+      <rect x="148" y="78"  width="62" height="62"/><rect x="218" y="78"  width="62" height="62"/>
+      <rect x="8"   y="148" width="62" height="62"/><rect x="78"  y="148" width="62" height="62"/>
+      <rect x="148" y="148" width="62" height="62"/><rect x="218" y="148" width="62" height="62"/>
+      <rect x="8"   y="218" width="62" height="62"/><rect x="78"  y="218" width="62" height="62"/>
+      <rect x="148" y="218" width="62" height="62"/><rect x="218" y="218" width="62" height="62"/>
+    </g>
+    <!-- LED 5,0 mm = 48 px, mittig in der 62-px-Kammer -->
+    <g fill="#ffd24a" opacity="0.85" stroke="#c9a227" stroke-width="0.8">
+      <rect x="18" y="18" width="42" height="42" rx="3"/><rect x="88" y="18" width="42" height="42" rx="3"/>
+      <rect x="158" y="18" width="42" height="42" rx="3"/><rect x="228" y="18" width="42" height="42" rx="3"/>
+      <rect x="18" y="88" width="42" height="42" rx="3"/><rect x="88" y="88" width="42" height="42" rx="3"/>
+    </g>
+  </g>
+  <g>
+    <path class="dim2" d="M128 372 H 190" marker-start="url(#ah2)" marker-end="url(#ah)"/>
+    <text class="dimt2" x="159" y="392" text-anchor="middle">7,29 mm</text>
+    <path class="dim2" d="M194 355 V 386 L 250 386"/>
+    <circle cx="194" cy="355" r="2.5" fill="#2f5fd0"/>
+    <text class="dimt2" x="256" y="390">1,0 mm Wand</text>
+    <path class="dim2" d="M120 40 H 190" marker-start="url(#ah2)" marker-end="url(#ah)"/>
+    <text class="dimt2" x="155" y="32" text-anchor="middle">8,29 mm Raster</text>
+  </g>
+  <g transform="translate(470,70)">
+    <rect x="0" y="0" width="24" height="24" rx="3" fill="#ffd24a" opacity="0.85" stroke="#c9a227"/>
+    <text class="lbl2" x="36" y="17">WS2812B, 5,0 × 5,0 mm</text>
+    <text class="lbs2" x="36" y="35">1,14 mm Luft je Seite</text>
+    <rect x="0" y="60" width="24" height="24" rx="3" fill="#fffdf0" stroke="#c8cedb"/>
+    <text class="lbl2" x="36" y="77">Kammer 7,29 × 7,29 mm</text>
+    <text class="lbs2" x="36" y="95">das sichtbare Pixel</text>
+    <rect x="0" y="120" width="24" height="24" rx="3" fill="#dfe4ec" stroke="#2b2f38"/>
+    <text class="lbl2" x="36" y="137">Wand 1,0 mm, weiß</text>
+    <text class="lbs2" x="36" y="155">weiß, nicht schwarz</text>
+    <text class="lbl2" x="0" y="205">16 × 16 gesamt</text>
+    <text class="lbs2" x="0" y="225">132,6 × 132,6 mm, Höhe 8,0 mm</text>
+    <text class="lbs2" x="0" y="243">4,51 m Wandlänge</text>
+    <text class="lbs2" x="0" y="261">34 cm³ Gitter + 10 cm³ Deckel</text>
+  </g>
+</svg>
+</div>
+
+<div class="note">
+  <strong>Rastermaß richtig ermitteln:</strong> Mitte–Mitte über die ganze Reihe
+  messen und durch die Anzahl der <em>Abstände</em> teilen, nicht durch die
+  Anzahl der LEDs. Bei 8 LEDs sind das 7 Abstände: 58 mm ÷ 7 = 8,286 mm.
+  Teilt man durch 8, kommt fälschlich 7,25 mm heraus.
+</div>
+
+<h2>4 · Druckrichtung</h2>
+
+<p>Kopfüber drucken: Diffusordeckel aufs Bett, Wände nach oben.</p>
+
+<div class="card fig">
+<svg viewBox="0 0 920 300" role="img" aria-label="Druckrichtung: Deckel liegt auf dem Bett">
+  <defs>
+    <style>
+      .p3{stroke:#2b2f38;stroke-width:1.5}
+      .t3{font:600 13px ui-sans-serif,system-ui,sans-serif;fill:#16181d}
+      .s3{font:11.5px ui-sans-serif,system-ui,sans-serif;fill:#5b6270}
+      .a3{stroke:#1a8a6d;stroke-width:1.6;fill:none}
+    </style>
+    <marker id="up" markerWidth="8" markerHeight="8" refX="4" refY="1" orient="auto">
+      <path d="M0 8 L4 0 L8 8 z" fill="#1a8a6d"/>
+    </marker>
+  </defs>
+  <g transform="translate(230,0)">
+    <rect fill="#8c93a1" x="0" y="210" width="440" height="16" rx="3"/>
+    <text class="s3" x="330" y="246" text-anchor="end">Druckbett</text>
+    <rect x="30" y="194" width="380" height="16" fill="#eef1f6" stroke="#1a8a6d" stroke-width="2"/>
+    <text class="s3" x="20" y="205" text-anchor="end">Deckel 0,6 mm</text>
+    <g fill="#f4f6fa" class="p3">
+      <rect x="30"  y="84" width="9" height="110"/><rect x="124" y="84" width="9" height="110"/>
+      <rect x="218" y="84" width="9" height="110"/><rect x="312" y="84" width="9" height="110"/>
+      <rect x="401" y="84" width="9" height="110"/>
+    </g>
+    <text class="s3" x="20" y="145" text-anchor="end">Wand 1,0 mm</text>
+    <path class="a3" d="M220 76 V 34" marker-end="url(#up)"/>
+    <text class="t3" x="220" y="24" text-anchor="middle" fill="#0f6b53">Druckrichtung</text>
+    <path class="a3" d="M180 202 V 258" stroke-dasharray="3 3"/>
+    <text class="s3" x="180" y="276" text-anchor="middle" fill="#0f6b53">Bettseite wird die Sichtseite</text>
+  </g>
+</svg>
+</div>
+
+<table>
+  <thead><tr><th>Slicer-Einstellung</th><th>Wert</th></tr></thead>
+  <tbody>
+    <tr><td class="k">Orientierung</td><td>Deckel auf dem Bett, Wände nach oben</td></tr>
+    <tr><td class="k">Stützen</td><td>keine</td></tr>
+    <tr><td class="k">Schichthöhe</td><td>0,2 mm</td></tr>
+    <tr><td class="k">Bodenlagen (= Deckel)</td><td>3</td></tr>
+    <tr><td class="k">Muster der Bodenlagen</td><td>ausgerichtet rektilinear, 0° / 90°</td></tr>
+    <tr><td class="k">Perimeter</td><td>2 bei 0,5 mm Linienbreite (ergibt 1,0 mm Wand)</td></tr>
+    <tr><td class="k">Infill</td><td>0 % — die Wände sind reine Perimeter</td></tr>
+    <tr><td class="k">Filament</td><td>weiß, PLA oder PETG</td></tr>
+    <tr><td class="k">Druckblech</td><td>glatt bei weißem Filament, strukturiert bei klarem</td></tr>
+  </tbody>
+</table>
+
+<h2>5 · Frontscheibe</h2>
+
+<p>Rauchgraues PMMA, 2 mm. Transmission nach gewünschtem Kontrast:</p>
+
+<table>
+  <thead><tr><th>Tönung</th><th class="num">Transmission</th><th class="num">Restlicht LED</th><th class="num">Kontrast</th></tr></thead>
+  <tbody>
+    <tr><td class="k">leicht grau</td><td class="num">60 %</td><td class="num">60 %</td><td class="num">×1,7</td></tr>
+    <tr><td class="k">rauchgrau</td><td class="num">40 %</td><td class="num">40 %</td><td class="num">×2,5</td></tr>
+    <tr><td class="k">dunkelgrau</td><td class="num">30 %</td><td class="num">30 %</td><td class="num">×3,3</td></tr>
+  </tbody>
+</table>
+<p style="color:var(--muted);font-size:13.5px;margin:6px 0 0">
+  Empfehlung 30–40 %. Umgebungslicht durchläuft die Scheibe zweimal, LED-Licht
+  einmal — daraus der Kontrastgewinn <code>1/T</code>.
+</p>
+
+<h2>6 · Arbeitsablauf</h2>
+
+<ol class="steps">
+  <li><b>Raster verifizieren</b>
+      Abstand von der ersten zur letzten LED einer Reihe messen und durch die
+      Anzahl der Zwischenräume teilen. Sollwert 8,29 mm. Abweichung übernehmen,
+      nicht mitteln.</li>
+  <li><b>Testkachel drucken</b>
+      4 × 4 Kammern im gemessenen Raster, Deckelstärke feldweise 2 / 3 / 4 / 5
+      Lagen. Auf das eingeschaltete Panel legen, Passung und Deckelstärke
+      festlegen.</li>
+  <li><b>Gitter modellieren</b>
+      Kammerraster wie gemessen, Wand 1,0 mm, Höhe 8,0 mm, Deckel in der
+      gewählten Stärke. Außenkontur auf das PCB-Maß legen, nicht auf 8 × Raster.</li>
+  <li><b>Drucken</b>
+      Kopfüber, ohne Stützen, Einstellungen aus Abschnitt 4.</li>
+  <li><b>Panel aufziehen</b>
+      Flexibles Panel vollflächig auf die 2-mm-Trägerplatte kleben, plan
+      arbeiten. Starre Panels direkt verschrauben.</li>
+  <li><b>Trocken zusammenlegen</b>
+      Trägerplatte, Gitter und Frontscheibe ohne Verschraubung stapeln, Panel
+      einschalten, Sitz der Kammern prüfen.</li>
+  <li><b>Endmontage</b>
+      Gitter und Frontscheibe in den Rahmen einlegen, von hinten verschrauben.
+      Vorne bleiben keine Schrauben sichtbar.</li>
+</ol>
+
+<div class="note">
+  <strong>Schritt 1 und 2 vor Schritt 3 abschließen.</strong> Rastermaß und
+  Deckelstärke lassen sich nach dem Druck nicht mehr ändern.
+</div>
+
+<h2>7 · Stückliste</h2>
+
+<table>
+  <thead><tr><th>Teil</th><th>Material / Maß</th><th>Menge 8×8</th><th>Menge 16×16</th></tr></thead>
+  <tbody>
+    <tr><td class="k">Gitter + Diffusor</td><td>PLA oder PETG weiß</td><td>≈ 14 g</td><td>≈ 55 g</td></tr>
+    <tr><td class="k">Frontscheibe</td><td>PMMA rauchgrau 2 mm, 30–40 % T</td><td>PCB-Maß</td><td>PCB-Maß</td></tr>
+    <tr><td class="k">Trägerplatte</td><td>Alu oder PMMA 2 mm</td><td>PCB-Maß</td><td>PCB-Maß</td></tr>
+    <tr><td class="k">LED-Panel</td><td>WS2812B, 8,29 mm Raster</td><td>1</td><td>1</td></tr>
+    <tr><td class="k">Rahmen</td><td>3D-Druck, umlaufend</td><td>1</td><td>1</td></tr>
+    <tr><td class="k">Schrauben</td><td>M3 × 10, von hinten</td><td>4–8</td><td>8–12</td></tr>
+  </tbody>
+</table>
+
+<h2>Quellen</h2>
+
+<ul class="src">
+  <li><a href="https://marian42.de/article/ledmatrix-tutorial/">Marian Kleineberg — LED Matrix Materials Guide</a><br>
+      <span style="color:var(--muted)">Materialvergleich für Gitter und Diffusor; Beleg dafür, dass der Diffusor dünn sein muss und ein 3D-gedrucktes Gitter Pappe- und Holzvarianten schlägt.</span></li>
+  <li><a href="https://www.printables.com/model/757665-32x32-led-matrix-frame-with-diffuser-grid">fractalnoise — 32×32 LED Matrix Frame with Diffuser Grid (Printables)</a><br>
+      <span style="color:var(--muted)">Quelle der Slicer-Einstellungen: ausgerichtet rektilinear 0°/90°, weißes Filament auf glattem Blech bzw. klares auf strukturiertem.</span></li>
+  <li><a href="https://makerworld.com/en/models/122272-16x16-led-matrix-frame-with-diffuser-grid">16×16 LED Matrix Frame with Diffuser Grid (MakerWorld)</a><br>
+      <span style="color:var(--muted)">Fertiges Modell in 16×16 — als Referenz oder Ausgangspunkt, Raster prüfen.</span></li>
+  <li><a href="https://makerworld.com/en/models/551021-8x8-ws2812b-matrix-diffuser">8×8 WS2812B Matrix Diffuser (MakerWorld)</a><br>
+      <span style="color:var(--muted)">Kleine Variante, brauchbar als Testdruck für Deckelstärke und Passung.</span></li>
+  <li><a href="https://www.thingiverse.com/thing:4973163">htcam — Customisable LED matrix diffuser grid (Thingiverse)</a><br>
+      <span style="color:var(--muted)">Parametrisches Modell: Rastermaß, Wandstärke und Höhe direkt einstellbar — Rastermaß direkt auf 8,286 mm setzbar.</span></li>
+  <li><a href="https://newscrewdriver.com/2019/07/18/glow-flow-led-diffusion-test-3d-printed-sheet/">Glow Flow — LED Diffusion Test mit 3D-gedruckter Folie</a><br>
+      <span style="color:var(--muted)">Messreihe zum Abstand LED–Diffusor: unter 1 mm bleiben Pixel getrennt, ab 10 mm verschmelzen sie.</span></li>
+  <li><a href="https://hackaday.com/2023/02/20/clear-pla-diffuses-leds/">Hackaday — Clear PLA Diffuses LEDs</a><br>
+      <span style="color:var(--muted)">Streuverhalten von klarem gegenüber weißem Filament.</span></li>
+  <li><a href="https://divoom.com/products/divoom-pixoo">Divoom Pixoo — 16×16 Pixel Art Display</a><br>
+      <span style="color:var(--muted)">Referenzgerät für den angestrebten Look.</span></li>
+</ul>
+
+<p class="foot">Bauanleitung für Projekt <code>pixeldisplay</code>.</p>
+
+</div>
+</body>
+</html>

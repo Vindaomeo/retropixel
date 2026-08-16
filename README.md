@@ -39,12 +39,13 @@ anklopfen, ohne die Demo abzuwürgen.
 ```
 pixeldisplay/
 ├── FW/                          Arduino-Sketch (Nano Every)
-│   ├── matrix8x8_nano_every.ino Hauptprogramm, State-Machine, Testpattern
+│   ├── FW.ino                   Hauptprogramm, State-Machine, Testpattern
 │   ├── mx8_config.h             ← HIER anpassen: Chipsatz, Pin, Geometrie
 │   ├── mx8_protocol.h           Framing-Konstanten + CRC-16
 │   └── mx8_rx.h                 RX-State-Machine (hardwarefrei, testbar)
 ├── script/                      Python-Host
 │   ├── hello_rainbow.py         Lauftext in Regenbogenfarben
+│   ├── smiley.py                Smiley-Animation mit weichen Übergängen
 │   ├── speedtest.py             Latenz-, Durchsatz- und Flood-Messung
 │   ├── mx8_cli.py               Kommandozeile (ports/monitor/demo/image/preview)
 │   ├── mx8/protocol.py          Framing/CRC — Spiegel von mx8_protocol.h
@@ -54,6 +55,7 @@ pixeldisplay/
 │   └── mx8/patterns.py          Host-Animationen
 ├── tests/                       Kreuztest C ↔ Python, ohne Hardware
 ├── docs/wiring.html             Verdrahtungsplan als Grafik (im Browser öffnen)
+├── docs/pixelgrid.html          Pixelgitter für quadratische Pixel (16×16-Ausbau)
 ├── PROTOCOL.md                  vollständige Protokollspezifikation
 ├── WIRING.md                    Verdrahtung, Strombudget, Stolperfallen
 └── README.md
@@ -97,8 +99,22 @@ Benötigt in der Arduino IDE:
 * Bibliothek **FastLED ≥ 3.6** — ältere Versionen kompilieren für den
   ATmega4809 nicht. Getestet gegen 3.9.x.
 
-Dann: Ordner `FW/` öffnen, Board *Arduino Nano Every* wählen, Registers
-*ATMEGA4809* (Standard), hochladen.
+Dann `FW/FW.ino` öffnen — in der IDE mit `Strg+O` und dem vollen Pfad, oder aus
+der Shell heraus:
+
+```powershell
+start FW\FW.ino          # Windows
+```
+
+Die drei Header lädt die IDE automatisch als weitere Tabs. Unter *Werkzeuge*:
+Board **Arduino Nano Every**, Registers emulation **None (ATMEGA4809)** — dann
+hochladen.
+
+> Der Sketch heißt bewusst `FW.ino` und nicht `matrix8x8_nano_every.ino`: die
+> Arduino IDE verlangt, dass der Ordnername dem Namen der `.ino` entspricht.
+> So lässt sich der Sketch direkt aus dem Repo öffnen, ohne ihn ins Sketchbook
+> zu kopieren oder eine Junction anzulegen — und das gilt auf jedem Rechner,
+> der das Repo klont.
 
 ### Anderes Panel / anderer LED-Typ
 
@@ -139,32 +155,120 @@ pip install pyserial          # Pflicht
 pip install pillow            # optional, nur für den Bild-/GIF-Modus
 ```
 
-### Die zwei Testprogramme
+### Port und Baudrate einstellen
+
+Der Port kommt bei **jedem** Skript über `-p`, die Baudrate über `-b`:
+
+```powershell
+python hello_rainbow.py -p COM4
+python speedtest.py -p COM4
+python mx8_cli.py demo -p COM4 --pattern plasma
+```
+
+Wer das nicht jedes Mal tippen will, setzt es einmal pro Konsolensitzung:
+
+```powershell
+$env:MX8_PORT = "COM4"          # PowerShell
+```
+```bash
+export MX8_PORT=/dev/ttyUSB0    # Linux/macOS
+```
+
+Reihenfolge: `-p` schlägt `MX8_PORT`, das schlägt die Auto-Erkennung. Analog
+`-b` / `MX8_BAUD` / 115200. `python mx8_cli.py ports` listet, was da ist.
+
+> **Die Baudrate muss auf beiden Seiten gleich sein.** Host-seitig `-b` bzw.
+> `MX8_BAUD`, Firmware-seitig `MX_SERIAL_BAUD` in `FW/mx8_config.h`. Beide
+> stehen ab Werk auf 115200 — solange du nichts änderst, passt es.
+
+### Klassischer Arduino Nano statt Nano Every
+
+Läuft genauso, zwei Dinge sind anders:
+
+* **Board in der IDE:** *Arduino Nano*, Prozessor *ATmega328P*. Wenn der Upload
+  mit `avrdude: stk500_recv(): programmer is not responding` abbricht, ist es
+  ein Klon mit altem Bootloader → Prozessor *ATmega328P (Old Bootloader)*.
+* **Port-Erkennung:** Klassische Nanos hängen an einem CH340 oder FTDI, nicht
+  an einer Arduino-USB-ID. Die Auto-Erkennung kennt diese Wandler zwar, kann
+  sie aber nicht von anderen USB-Seriell-Geräten unterscheiden — sind mehrere
+  angesteckt, musst du mit `-p COM4` auswählen.
+
+Der ATmega328P hat 2 KB RAM; die Firmware braucht davon rund 550 Byte
+(192 B Framebuffer + 200 B Empfangspuffer + Serial-Puffer). Passt, aber viel
+Luft nach oben ist da nicht — ein 16×16-Panel ginge auf diesem Chip nicht mehr.
+
+**Wenn `speedtest.py` eine Latenz von konstant ~16 ms zeigt:** das ist nicht
+dein Code, sondern der *Latency Timer* des FTDI-Treibers, der ab Werk auf 16 ms
+steht und kleine Pakete sammelt, statt sie sofort zu schicken. Fix im
+Geräte-Manager → Anschlüsse → COM4 → Eigenschaften → Anschlusseinstellungen →
+Erweitert → **Latenzzeit auf 1 ms**. Danach steigt die Framerate deutlich.
+
+### Die Testprogramme
 
 ```bash
 python hello_rainbow.py                    # "Hello World" als Lauftext, Regenbogen
 python hello_rainbow.py --preview          # dasselbe im Terminal, ohne Hardware
 python hello_rainbow.py --text "Grüße!" --speed 12 --loops 3
 
+python smiley.py                           # neutral → traurig → lustig → zwinkern
+python smiley.py --preview --hold 2 --morph 1
+python smiley.py --winks 1 --loops 3
+
 python speedtest.py                        # Latenz + Durchsatz messen
 python speedtest.py --flood                # zusätzlich der Stresstest ohne ACK
 python speedtest.py --preview              # nur die Baudraten-Rechnung
 ```
 
-**`hello_rainbow.py`** scrollt Text durch die Matrix. Der Farbton hängt an der
-*Textspalte*, nicht an der Displayspalte — der Regenbogen wandert also mit den
-Buchstaben mit, statt dass die Buchstaben durch einen stehenden Verlauf laufen.
-Standardmäßig wird zwischen zwei Textspalten übergeblendet (`--hard` schaltet
-das ab): auf 8×8 gleitet der Text dadurch sichtbar flüssiger, statt in
-Pixelschritten zu springen. Der 5×7-Font in `mx8/font5x7.py` deckt ASCII plus
-Umlaute und ß ab und steht als lesbare ASCII-Art im Quelltext.
+**`smiley.py`** läuft mit 16 fps in der Schleife neutral → traurig → lustig →
+Augenzwinkern, mit weichen Übergängen. Die Mienen sind nicht als vier Bitmaps
+hinterlegt, sondern **parametrisch**: Mundkrümmung (−1 bis +1), Augenöffnung,
+Farbton und Tränen-Intensität sind Zahlen, zwischen denen interpoliert wird.
+Der Übergang *biegt* den Mund also wirklich von der Trauermiene ins Grinsen.
 
-**`speedtest.py`** misst in drei Stufen: Latenz (PING/ACK), Durchsatz
-(Vollbilder mit Quittung) und optional Flood (ohne Quittung). Jeder Messwert
-wird gegen das theoretische Baudraten-Limit gestellt, sodass man sieht, ob die
-Leitung bremst oder die USB-Latenz. Der Flood-Modus zeigt vor allem, *warum*
-die ACK-Flusskontrolle da ist — ohne sie gehen Frames verloren, sobald FastLED
-in `show()` die Interrupts sperrt.
+`--hold` setzt die Standzeit je Miene, `--morph` die Übergangsdauer, `--winks`
+die Zahl der Zwinker pro Durchgang.
+
+#### Feste Einteilung, harte Pixel
+
+Auf 8×8 gibt es keine Zwischentöne: jedes Pixel ist ganz an oder ganz aus.
+
+**Augen** nach festem Bitmuster, Zeile 0 und 1, Zeile 2 bleibt frei:
+
+```
+Zeile 0    0 1 1 0 0 1 1 0
+Zeile 1    1 1 1 0 0 1 1 1
+Zeile 2    0 0 0 0 0 0 0 0
+```
+
+Die schmalere obere Reihe sitzt jeweils zur Mitte hin versetzt — das gibt den
+Augen eine leichte Neigung zueinander. Beim Blinzeln fällt genau diese obere
+Reihe weg, die untere bleibt als Lidstrich stehen.
+
+**Mund** genau ein Pixel je Spalte, über alle acht Spalten:
+
+```
+lustig    4 5 6 7 7 6 5 4
+neutral   6 6 6 6 6 6 6 6
+traurig   7 6 5 4 4 5 6 7
+```
+
+Die Zeile kommt aus `y(x) = 5,5 + curve · (0,5 − u²) · 2,5` mit
+`u = (x − 3,5)/3,5`, gerundet auf die nächste Zeile. Die Übergänge laufen also
+weiter über `curve` — nur wird das Ergebnis zu ganzen Pixeln gerundet.
+
+> **Warum keine Weichzeichnung.** Eine Vorfassung zeichnete den Mund als
+> Distanzfeld mit 2 Pixel Strichbreite und weichen Rändern. Auf dem Panel
+> funktioniert das nicht: teilgedeckte Pixel landen bei kleiner
+> Panel-Helligkeit auf PWM 1–3, wo WS2812B ungleichmäßig und fleckig werden —
+> und stellenweise wurde der Mund dadurch drei Pixel breit statt einem.
+
+Die Amplitude ist bewusst klein: bei größeren Werten liegen zwei Nachbarspalten
+zwei Zeilen auseinander und der Mund reißt an den steilen Enden auseinander.
+Mit 2,5 bleibt er in **jedem** Zwischenschritt zusammenhängend — die Tests
+prüfen das über den ganzen Übergang durch.
+
+Der optionale Gesichtskreis (`--ring`) ist der einzige Teil, der noch mit
+Zwischenhelligkeiten arbeitet, und aus genau diesem Grund standardmäßig aus.
 
 ### Weitere Kommandos
 

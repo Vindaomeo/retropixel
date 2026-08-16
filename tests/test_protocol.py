@@ -283,6 +283,228 @@ def test_scroller() -> None:
     check(lit_frames > 40, "Lauftext zeigt tatsaechlich Pixel", f"nur {lit_frames}")
 
 
+def test_smiley() -> None:
+    """Smiley-Animation: Timeline, Stetigkeit und gueltige Frames."""
+    sys.path.insert(0, str(ROOT / "script"))
+    from mx8.framebuffer import Framebuffer
+    from smiley import (
+        LUSTIG,
+        NEUTRAL,
+        SEQUENCE,
+        TRAURIG,
+        ZWINKERN,
+        draw_face,
+        face_at,
+        lerp_hue,
+        wink_envelope,
+    )
+
+    HOLD, MORPH, WINKS = 1.4, 0.7, 2
+
+    # Die Animation muss auf dem neutralen Gesicht STEHEN, nicht mitten im
+    # Uebergang starten -- sonst sieht man "zuerst neutral" nie.
+    f0, _ = face_at(0.0, HOLD, MORPH, WINKS)
+    check(f0.name == "neutral" and abs(f0.curve) < 1e-9,
+          "t=0 haelt das neutrale Gesicht", f"{f0.name} curve={f0.curve}")
+    f1, _ = face_at(HOLD * 0.9, HOLD, MORPH, WINKS)
+    check(f1.curve == NEUTRAL.curve, "neutrales Gesicht bleibt die Standzeit ueber stehen")
+
+    # Reihenfolge neutral -> traurig -> lustig -> zwinkern
+    check([f.name for f in SEQUENCE] == ["neutral", "traurig", "lustig", "zwinkern"],
+          "Reihenfolge der Mienen stimmt")
+    period = HOLD + MORPH
+    mid_hold = HOLD / 2
+    seen = [face_at(k * period + mid_hold, HOLD, MORPH, WINKS)[0].name for k in range(4)]
+    check(seen == ["neutral", "traurig", "lustig", "zwinkern"],
+          "jede Miene wird einmal gehalten", str(seen))
+
+    # Mundkruemmung: traurig < neutral < lustig
+    check(TRAURIG.curve < NEUTRAL.curve < LUSTIG.curve,
+          "Mundkruemmung laeuft von traurig ueber neutral nach lustig")
+
+    # Zwinkern: Huellkurve muss an beiden Enden offen sein und dazwischen
+    # wirklich schliessen, sonst springt das Bild an der Segmentgrenze.
+    check(wink_envelope(0.0, HOLD, WINKS) == 1.0, "Zwinker-Kurve startet offen")
+    check(abs(wink_envelope(HOLD, HOLD, WINKS) - 1.0) < 1e-9,
+          "Zwinker-Kurve endet offen (= ZWINKERN.eye_r, kein Sprung)")
+    check(ZWINKERN.eye_r == 1.0, "ZWINKERN.eye_r passt zur Huellkurve")
+    samples = [wink_envelope(i / 200 * HOLD, HOLD, WINKS) for i in range(200)]
+    check(min(samples) == 0.0, "das Auge geht waehrend des Zwinkerns wirklich ganz zu")
+    closed_ratio = sum(s < 0.5 for s in samples) / len(samples)
+    check(closed_ratio < 0.4,
+          "Auge ist ueberwiegend offen (Zwinkern, kein Dauerblinzeln)",
+          f"{closed_ratio:.0%} geschlossen")
+
+    # Farbton auf dem kurzen Weg: Gelb -> Rosa muss ueber Rot, nicht ueber Gruen
+    mid = lerp_hue(0.13, 0.92, 0.5)
+    check(mid > 0.9 or mid < 0.13, "Farbton nimmt den kurzen Weg um den Farbkreis",
+          f"Mitte bei {mid:.3f}")
+
+    # Alle Frames zweier kompletter Zyklen muessen gueltig sein
+    fb = Framebuffer(8, 8)
+    cycle = period * len(SEQUENCE)
+    bad = dark = 0
+    steps = int(cycle * 2 * 16)  # zwei Runden bei 16 fps
+    for i in range(steps):
+        t = i / 16.0
+        f, _ = face_at(t, HOLD, MORPH, WINKS)
+        draw_face(fb, f, t)
+        if len(fb.buf) != 192 or any(not 0 <= v <= 255 for v in fb.buf):
+            bad += 1
+        if not any(fb.buf):
+            dark += 1
+    check(bad == 0, f"alle {steps} Smiley-Frames sind gueltige 192-B-Bilder",
+          f"{bad} defekt")
+    check(dark == 0, "kein Frame ist komplett schwarz", f"{dark} leere Frames")
+
+
+def test_smiley_ring_and_gamma() -> None:
+    """Gesichtskreis und Gamma-Korrektur der schwachen Farben."""
+    sys.path.insert(0, str(ROOT / "script"))
+    from mx8.framebuffer import Framebuffer
+    from smiley import NEUTRAL, RING_DEFAULT, draw_face, draw_ring, gamma
+
+    # Gamma: eine "wahrgenommene" Intensitaet muss deutlich weniger PWM ergeben.
+    check(gamma(1.0) == 1.0, "gamma(1.0) laesst volle Helligkeit unangetastet")
+    check(gamma(0.0) == 0.0, "gamma(0.0) bleibt aus")
+    check(abs(gamma(0.5) - 0.5 ** 2.2) < 1e-9, "gamma(0.5) = 0.5^2.2 ≈ 0.218")
+    check(gamma(0.25) < 0.06,
+          "wahrgenommene 25 % ergeben unter 6 % PWM (sonst wirkt 'zart' zu kraeftig)",
+          f"{gamma(0.25):.3f}")
+    check(all(gamma(a) < gamma(b) for a, b in [(.1, .2), (.2, .4), (.4, .8)]),
+          "gamma ist monoton steigend")
+
+    # Der Ring muss ein geschlossener Kreis am Rand sein und die Mitte freilassen.
+    fb = Framebuffer(8, 8)
+    draw_ring(fb, 1.0)  # volle Intensitaet, damit die Form klar messbar ist
+    lit = {(x, y) for y in range(8) for x in range(8) if any(fb.get(x, y))}
+    check((3, 0) in lit and (0, 3) in lit and (7, 4) in lit and (4, 7) in lit,
+          "Ring beruehrt alle vier Seiten")
+    check((1, 1) in lit and (6, 6) in lit, "Ring hat die diagonalen Eckpunkte")  # noqa
+    check((0, 0) not in lit and (7, 7) not in lit, "Ring laesst die Ecken frei")
+    centre = {(x, y) for x in range(2, 6) for y in range(2, 6)}
+    check(not (lit & centre), "Ring laesst die Gesichtsmitte komplett frei",
+          str(sorted(lit & centre)))
+    check(len(lit) == 20, "Ring besteht aus 20 Pixeln", str(len(lit)))
+
+    # Der Ring darf das Gesicht nicht ueberstrahlen. Geprueft an Pixeln, die
+    # das Gesicht selbst nie belegt (Zeile 0 und Spalte 0/7).
+    fb2 = Framebuffer(8, 8)
+    draw_face(fb2, NEUTRAL, 0.0, ring=0.25)
+    ring_px = max(max(fb2.get(x, y)) for x, y in [(0, 3), (7, 4), (3, 7)])
+    face_px = max(fb2.get(2, 1))          # Augen liegen jetzt in Zeile 0/1
+    check(face_px == 255, "Gesichtsmerkmale leuchten voll", str(face_px))
+    check(ring_px < face_px * 0.12,
+          "Ring bleibt deutlich unter dem Gesicht (zart angedeutet)",
+          f"Ring {ring_px} vs Gesicht {face_px}")
+    check(ring_px > 0, "Ring ist trotzdem sichtbar", str(ring_px))
+
+    # Auf 8x8 ist der Ring per Default aus -- das Gesicht braucht die Flaeche.
+    check(RING_DEFAULT == 0.0, "Ring ist auf 8x8 standardmaessig aus",
+          str(RING_DEFAULT))
+    fb3 = Framebuffer(8, 8)
+    draw_face(fb3, NEUTRAL, 0.0, ring=0.0)
+    check(all(not any(fb3.get(x, y)) for x, y in [(3, 0), (0, 3), (7, 4), (4, 7)]),
+          "--ring 0 schaltet den Kreis komplett ab")
+
+
+def test_smiley_geometry() -> None:
+    """Festes Bitmuster, harte Pixel, volle Breite."""
+    sys.path.insert(0, str(ROOT / "script"))
+    from mx8.framebuffer import Framebuffer
+    from smiley import (
+        EYE_L_BOT,
+        EYE_L_TOP,
+        EYE_R_BOT,
+        EYE_R_TOP,
+        EYE_ROW_BOT,
+        EYE_ROW_TOP,
+        LUSTIG,
+        NEUTRAL,
+        TRAURIG,
+        ZWINKERN,
+        draw_face,
+        mouth_rows,
+    )
+
+    def render(face, t=0.0):
+        fb = Framebuffer(8, 8)
+        draw_face(fb, face, t, ring=0.0)
+        return fb
+
+    def lit(fb):
+        return {(x, y) for y in range(8) for x in range(8) if any(fb.get(x, y))}
+
+    # --- KEINE gedimmten Pixel -------------------------------------------
+    # Teilgedeckte Pixel landen bei kleiner Panel-Helligkeit auf PWM 1..3,
+    # wo WS2812B fleckig werden. Auf 8x8 wird deshalb hart gesetzt.
+    for face in (NEUTRAL, TRAURIG, LUSTIG, ZWINKERN):
+        fb = render(face, 0.3)
+        levels = {max(fb.get(x, y)) for x, y in lit(fb)}
+        check(levels <= {255}, f"'{face.name}': jedes Pixel voll an, keine Zwischenstufen",
+              f"Stufen {sorted(levels)}")
+
+    # --- Augen exakt nach Bitmuster --------------------------------------
+    #   Zeile 0   0 1 1 0 0 1 1 0
+    #   Zeile 1   1 1 1 0 0 1 1 1
+    #   Zeile 2   0 0 0 0 0 0 0 0
+    fb = render(NEUTRAL)
+    row0 = {x for x in range(8) if any(fb.get(x, EYE_ROW_TOP))}
+    row1 = {x for x in range(8) if any(fb.get(x, EYE_ROW_BOT))}
+    row2 = {x for x in range(8) if any(fb.get(x, 2))}
+    check(row0 == {1, 2, 5, 6}, "Augen Zeile 0 = 01100110", str(sorted(row0)))
+    check(row1 == {0, 1, 2, 5, 6, 7}, "Augen Zeile 1 = 11100111", str(sorted(row1)))
+    check(row2 == set(), "Zeile 2 bleibt frei", str(sorted(row2)))
+    check(set(EYE_L_TOP) | set(EYE_R_TOP) == {1, 2, 5, 6}, "obere Augenreihe stimmt")
+    check(set(EYE_L_BOT) | set(EYE_R_BOT) == {0, 1, 2, 5, 6, 7}, "untere Augenreihe stimmt")
+
+    # --- Mund: genau ein Pixel je Spalte, ueber alle 8 Spalten ------------
+    for face in (NEUTRAL, TRAURIG, LUSTIG, ZWINKERN):
+        fb = render(face)
+        for x in range(8):
+            n = sum(1 for y in range(3, 8) if any(fb.get(x, y)))
+            check(n == 1, f"'{face.name}' Spalte {x}: genau 1 Mundpixel", f"{n} Pixel")
+
+    # --- Mundformen ------------------------------------------------------
+    check(mouth_rows(0.0) == [6] * 8, "neutral: gerade Linie in Zeile 6",
+          str(mouth_rows(0.0)))
+    check(mouth_rows(1.0) == [4, 5, 6, 7, 7, 6, 5, 4], "lustig: Bogen nach oben offen",
+          str(mouth_rows(1.0)))
+    check(mouth_rows(-1.0) == [7, 6, 5, 4, 4, 5, 6, 7], "traurig: Bogen nach unten offen",
+          str(mouth_rows(-1.0)))
+
+    # --- Keine Luecken, auch nicht in den Zwischenschritten ---------------
+    # Springt der Mund zwischen zwei Nachbarspalten um mehr als eine Zeile,
+    # reisst er optisch auseinander.
+    worst = 0
+    for i in range(-20, 21):
+        rows = mouth_rows(i / 20.0)
+        worst = max(worst, max(abs(rows[k + 1] - rows[k]) for k in range(7)))
+    check(worst <= 1, "Mund bleibt in jedem Uebergangsschritt zusammenhaengend",
+          f"groesster Sprung {worst} Zeilen")
+
+    # --- Volle Breite, und die Mienen reichen bis an beide Kanten ---------
+    for face in (NEUTRAL, TRAURIG, LUSTIG, ZWINKERN):
+        cols = {x for x, _ in lit(render(face))}
+        check(cols == set(range(8)), f"'{face.name}' nutzt alle 8 Spalten",
+              f"nur {sorted(cols)}")
+    for face in (TRAURIG, LUSTIG, ZWINKERN):
+        rows = {y for _, y in lit(render(face))}
+        check(rows >= {0, 1, 4, 5, 6, 7}, f"'{face.name}' reicht bis Zeile 7",
+              f"Zeilen {sorted(rows)}")
+
+    # --- Zwinkern: obere Reihe faellt weg, untere bleibt ------------------
+    closed = ZWINKERN.__class__(ZWINKERN.name, ZWINKERN.curve, 1.0, 0.0,
+                                ZWINKERN.hue, ZWINKERN.sat, ZWINKERN.tear)
+    fb = render(closed)
+    check(all(any(fb.get(x, EYE_ROW_TOP)) for x in EYE_L_TOP),
+          "beim Zwinkern bleibt das linke Auge offen")
+    check(not any(any(fb.get(x, EYE_ROW_TOP)) for x in EYE_R_TOP),
+          "rechtes Auge: obere Reihe ist weg")
+    check(all(any(fb.get(x, EYE_ROW_BOT)) for x in EYE_R_BOT),
+          "rechtes Auge: untere Reihe bleibt als Lidstrich stehen")
+
+
 def test_speed_theory() -> None:
     """Die Baudraten-Rechnung muss zur Protokollgroesse passen."""
     sys.path.insert(0, str(ROOT / "script"))
@@ -324,6 +546,9 @@ def main() -> int:
     test_framebuffer()
     test_font()
     test_scroller()
+    test_smiley()
+    test_smiley_ring_and_gamma()
+    test_smiley_geometry()
     test_speed_theory()
 
     total = _passes + len(_fails)

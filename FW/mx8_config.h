@@ -55,6 +55,8 @@
 // ---------------------------------------------------------------------------
 // 4) Timing / Protokoll
 // ---------------------------------------------------------------------------
+// Muss zur Host-Seite passen (-b bzw. Umgebungsvariable MX8_BAUD).
+// Wer beides aendert, bekommt bei 250000 etwa die doppelte Framerate.
 #define MX_SERIAL_BAUD          115200UL
 #define MX_BOOT_WINDOW_MS       5000UL  // Wartefenster nach Reset
 #define MX_READY_INTERVAL_MS    1000UL  // "ich bin ready" Takt
