@@ -1,7 +1,8 @@
-"""MatrixLink -- serielle Verbindung zum Nano Every."""
+"""MatrixLink -- serielle Verbindung zum Arduino."""
 
 from __future__ import annotations
 
+import os
 import queue
 import threading
 import time
@@ -29,8 +30,32 @@ from .protocol import (
     encode,
 )
 
-# Arduino / Nano Every USB-IDs (Nano Every meldet sich ueber einen SAMD11-Bridge-Chip)
-_ARDUINO_VIDS = {0x2341, 0x2A03, 0x1B4F}
+#: Umgebungsvariablen, damit man Port/Baud nicht bei jedem Aufruf tippen muss.
+#: Beispiel (PowerShell):  $env:MX8_PORT = "COM4"
+ENV_PORT = "MX8_PORT"
+ENV_BAUD = "MX8_BAUD"
+
+DEFAULT_BAUD = 115200
+
+# Original-Arduino-Boards melden sich mit eigener USB-VID (Nano Every ueber
+# seinen SAMD11-Bridge-Chip, Uno/Mega ueber den 16u2).
+_ARDUINO_VIDS = {
+    0x2341: "Arduino",
+    0x2A03: "Arduino (arduino.org)",
+    0x1B4F: "SparkFun",
+    0x239A: "Adafruit",
+}
+
+# Klone und der klassische Nano haengen an einem generischen USB-Seriell-Wandler.
+# Diese VIDs sind NICHT arduino-spezifisch -- daran kann genauso ein Funkmodul
+# oder ein Messgeraet haengen. Deshalb nur als zweite Wahl und mit Rueckfrage,
+# sobald mehr als ein Kandidat da ist.
+_BRIDGE_VIDS = {
+    0x1A86: "CH340/CH341 (QinHeng)",
+    0x0403: "FTDI",
+    0x10C4: "CP210x (Silicon Labs)",
+    0x067B: "PL2303 (Prolific)",
+}
 
 
 class LinkError(RuntimeError):
@@ -43,21 +68,70 @@ class NackError(LinkError):
         super().__init__(f"NACK auf 0x{cmd:02X}: {ERR_NAMES.get(err, f'Code {err}')}")
 
 
+def _describe(ports) -> str:
+    if not ports:
+        return "keine seriellen Ports gefunden"
+    return "\n".join(
+        f"    {p.device:<14} {p.description}"
+        + (f"  [VID {p.vid:04X}:{p.pid:04X}]" if p.vid else "")
+        for p in ports
+    )
+
+
 def find_port(hint: Optional[str] = None) -> str:
-    """Findet den Nano-Every-Port. ``hint`` erzwingt einen bestimmten Port."""
+    """Sucht den Arduino-Port.
+
+    Reihenfolge: expliziter Parameter -> Umgebungsvariable MX8_PORT ->
+    Board mit Arduino-USB-ID -> generischer USB-Seriell-Wandler (CH340, FTDI,
+    CP210x, PL2303), wie ihn der klassische Nano und die meisten Klone haben.
+
+    Bei mehreren Wandlern wird bewusst nicht geraten: dann kommt eine
+    Fehlermeldung mit der Liste, und man waehlt mit ``-p`` aus.
+    """
     if hint:
         return hint
+    env = os.environ.get(ENV_PORT)
+    if env:
+        return env
+
     ports = list(list_ports.comports())
+
+    # 1) Echtes Arduino-Board -- eindeutig genug, um es einfach zu nehmen.
     for p in ports:
         if p.vid in _ARDUINO_VIDS:
             return p.device
+
+    # 2) Generischer USB-Seriell-Wandler (klassischer Nano, Klone).
+    bridges = [p for p in ports if p.vid in _BRIDGE_VIDS]
+    if len(bridges) == 1:
+        return bridges[0].device
+    if len(bridges) > 1:
+        raise LinkError(
+            "Mehrere USB-Seriell-Wandler gefunden — bitte mit -p auswaehlen:\n"
+            + _describe(bridges)
+        )
+
+    # 3) Letzter Versuch ueber den Klartext-Namen.
     for p in ports:
-        if "nano" in (p.description or "").lower():
+        if any(k in (p.description or "").lower() for k in ("arduino", "nano", "usb-serial")):
             return p.device
+
     raise LinkError(
-        "Kein Arduino-Port gefunden. Verfuegbar: "
-        + (", ".join(f"{p.device} ({p.description})" for p in ports) or "keine")
+        "Kein Arduino gefunden. Port bitte mit -p angeben (z. B. -p COM4)\n"
+        f"oder dauerhaft per Umgebungsvariable {ENV_PORT} setzen.\n"
+        "  Verfuegbare Ports:\n" + _describe(ports)
     )
+
+
+def default_baud() -> int:
+    """Baudrate aus MX8_BAUD, sonst 115200. Muss zu MX_SERIAL_BAUD passen."""
+    raw = os.environ.get(ENV_BAUD)
+    if not raw:
+        return DEFAULT_BAUD
+    try:
+        return int(raw)
+    except ValueError:
+        raise LinkError(f"{ENV_BAUD}={raw!r} ist keine gueltige Baudrate")
 
 
 class MatrixLink:
@@ -71,12 +145,12 @@ class MatrixLink:
     def __init__(
         self,
         port: Optional[str] = None,
-        baud: int = 115200,
+        baud: Optional[int] = None,
         ack_timeout: float = 0.5,
         on_log=None,
     ) -> None:
         self.port = find_port(port)
-        self.baud = baud
+        self.baud = baud if baud is not None else default_baud()
         self.ack_timeout = ack_timeout
         self.on_log = on_log or (lambda text: None)
 

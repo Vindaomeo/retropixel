@@ -1,6 +1,6 @@
 """MX8 Binaerprotokoll -- Framing, CRC und inkrementeller Parser.
 
-Spiegelbild von firmware/matrix8x8_nano_every/mx8_protocol.h.
+Spiegelbild von FW/mx8_protocol.h.
 Aenderungen immer in BEIDEN Dateien nachziehen.
 """
 

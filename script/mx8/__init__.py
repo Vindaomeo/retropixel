@@ -1,7 +1,16 @@
 """MX8 -- Host-Bibliothek fuer die 8x8-RGB-Matrix am Arduino Nano Every."""
 
 from .framebuffer import Framebuffer
-from .link import LinkError, MatrixLink, NackError, find_port
+from .link import (
+    DEFAULT_BAUD,
+    ENV_BAUD,
+    ENV_PORT,
+    LinkError,
+    MatrixLink,
+    NackError,
+    default_baud,
+    find_port,
+)
 from .patterns import PATTERNS
 from .protocol import FrameParser, Geometry, Message, crc16, encode
 
@@ -11,6 +20,10 @@ __all__ = [
     "LinkError",
     "NackError",
     "find_port",
+    "default_baud",
+    "ENV_PORT",
+    "ENV_BAUD",
+    "DEFAULT_BAUD",
     "PATTERNS",
     "FrameParser",
     "Geometry",

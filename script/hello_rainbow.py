@@ -72,8 +72,9 @@ def main(argv=None) -> int:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     ap.add_argument("--text", default="Hello World", help='Standard: "Hello World"')
-    ap.add_argument("-p", "--port", help="z. B. COM5 oder /dev/ttyACM0 (sonst Auto)")
-    ap.add_argument("-b", "--baud", type=int, default=115200)
+    ap.add_argument("-p", "--port", help="z. B. COM4 oder /dev/ttyACM0 (sonst MX8_PORT bzw. Auto)")
+    ap.add_argument("-b", "--baud", type=int, default=None,
+                   help="Standard: MX8_BAUD, sonst 115200")
     ap.add_argument("--brightness", type=int, default=None, help="0..255")
     ap.add_argument("--speed", type=float, default=8.0, help="Textspalten pro Sekunde")
     ap.add_argument("--fps", type=float, default=40.0, help="Bildrate")

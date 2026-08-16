@@ -178,8 +178,9 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    ap.add_argument("-p", "--port", help="z. B. COM5 oder /dev/ttyACM0 (sonst Auto)")
-    ap.add_argument("-b", "--baud", type=int, default=115200)
+    ap.add_argument("-p", "--port", help="z. B. COM4 oder /dev/ttyACM0 (sonst MX8_PORT bzw. Auto)")
+    ap.add_argument("-b", "--baud", type=int, default=None,
+                   help="Standard: MX8_BAUD, sonst 115200")
     ap.add_argument("--seconds", type=float, default=8.0, help="Dauer der Durchsatzmessung")
     ap.add_argument("--pings", type=int, default=40)
     ap.add_argument("--flood", action="store_true", help="zusaetzlich den Stresstest fahren")
@@ -211,12 +212,12 @@ def main(argv=None) -> int:
     link.open()
     try:
         geo = link.wait_ready(timeout=8.0)
-        print(f"\n  Port    {link.port} @ {args.baud} Baud")
+        print(f"\n  Port    {link.port} @ {link.baud} Baud")
         print(f"  Panel   {geo}")
         if args.brightness is not None:
             link.set_brightness(args.brightness)
 
-        th = print_theory(args.baud, geo.frame_bytes)
+        th = print_theory(link.baud, geo.frame_bytes)
         measure_latency(link, args.pings)
         measure_throughput(link, args.seconds, th)
         if args.flood:

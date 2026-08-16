@@ -203,8 +203,9 @@ def main(argv=None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     def add_common(p, with_render=True):
-        p.add_argument("-p", "--port", help="z. B. COM5 oder /dev/ttyACM0 (sonst Auto)")
-        p.add_argument("-b", "--baud", type=int, default=115200)
+        p.add_argument("-p", "--port", help="z. B. COM4 oder /dev/ttyACM0 (sonst MX8_PORT bzw. Auto)")
+        p.add_argument("-b", "--baud", type=int, default=None,
+                   help="Standard: MX8_BAUD, sonst 115200")
         p.add_argument("--ready-timeout", type=float, default=8.0)
         p.add_argument("--brightness", type=int, help="0..255")
         if with_render:
@@ -220,7 +221,8 @@ def main(argv=None) -> int:
 
     p = sub.add_parser("monitor", help="READY/NACK/LOG mitlesen, ohne zu senden")
     p.add_argument("-p", "--port")
-    p.add_argument("-b", "--baud", type=int, default=115200)
+    p.add_argument("-b", "--baud", type=int, default=None,
+                   help="Standard: MX8_BAUD, sonst 115200")
     p.add_argument("--seconds", type=float, default=0.0)
     p.set_defaults(func=cmd_monitor)
 
