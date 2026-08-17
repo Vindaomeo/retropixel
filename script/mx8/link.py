@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import queue
+import struct
 import threading
 import time
 from typing import Optional
@@ -16,6 +17,7 @@ from .protocol import (
     CMD_FRAME,
     CMD_HELLO,
     CMD_PING,
+    CMD_RAW,
     CMD_RELEASE,
     CMD_SET_BRIGHTNESS,
     ERR_NAMES,
@@ -36,6 +38,12 @@ ENV_PORT = "MX8_PORT"
 ENV_BAUD = "MX8_BAUD"
 
 DEFAULT_BAUD = 115200
+
+#: Raten, die ``wait_ready`` durchprobiert, wenn beim eingestellten Wert kein
+#: READY kommt. Absteigend, damit die schnelle Verbindung zuerst gewinnt.
+#: Bei nativem USB-CDC (Pico) ist die Zahl ohnehin wirkungslos -- dort trifft
+#: gleich der erste Versuch. Ein explizites ``-b`` schaltet die Suche ab.
+BAUD_CANDIDATES = (1_000_000, 500_000, 250_000, 115_200)
 
 # Original-Arduino-Boards melden sich mit eigener USB-VID (Nano Every ueber
 # seinen SAMD11-Bridge-Chip, Uno/Mega ueber den 16u2).
@@ -134,6 +142,11 @@ def default_baud() -> int:
         raise LinkError(f"{ENV_BAUD}={raw!r} ist keine gueltige Baudrate")
 
 
+def baud_search_order(first: int) -> list[int]:
+    """``first`` zuerst, danach die uebrigen Kandidaten ohne Wiederholung."""
+    return [first] + [b for b in BAUD_CANDIDATES if b != first]
+
+
 class MatrixLink:
     """Verbindung zum Panel.
 
@@ -150,6 +163,9 @@ class MatrixLink:
         on_log=None,
     ) -> None:
         self.port = find_port(port)
+        #: Wurde die Rate explizit vorgegeben (Argument oder MX8_BAUD)? Dann
+        #: sucht wait_ready nicht -- wer sie setzt, meint sie auch so.
+        self.baud_is_explicit = baud is not None or os.environ.get(ENV_BAUD) is not None
         self.baud = baud if baud is not None else default_baud()
         self.ack_timeout = ack_timeout
         self.on_log = on_log or (lambda text: None)
@@ -238,11 +254,38 @@ class MatrixLink:
 
     # -- Public API --------------------------------------------------------
     def wait_ready(self, timeout: float = 8.0) -> Geometry:
-        """Wartet auf das sekuendliche READY-Token und liefert die Geometrie."""
-        self._send(CMD_HELLO)  # nicht warten -- der Nano meldet sich ohnehin
-        self._await({MSG_READY}, timeout)
-        assert self.geometry is not None
-        return self.geometry
+        """Wartet auf das sekuendliche READY-Token und liefert die Geometrie.
+
+        Kommt bei der eingestellten Rate nichts, werden die uebrigen aus
+        BAUD_CANDIDATES durchprobiert. Das nimmt die haeufigste Stolperfalle
+        raus: MX_SERIAL_BAUD in der Firmware erhoeht, auf dem Host vergessen.
+        Ein explizites ``-b`` bzw. MX8_BAUD schaltet die Suche ab.
+        """
+        candidates = ([self.baud] if self.baud_is_explicit
+                      else baud_search_order(self.baud))
+        per_try = timeout if len(candidates) == 1 else max(2.5, timeout / len(candidates))
+
+        for i, baud in enumerate(candidates):
+            if i:                                  # Port mit neuer Rate neu oeffnen
+                self.on_log(f"kein READY bei {candidates[i - 1]} Baud, "
+                            f"versuche {baud}")
+                self.close()
+                self.baud = baud
+                self.open(reset_wait=0.5)
+            try:
+                self._send(CMD_HELLO)   # nicht warten -- er meldet sich ohnehin
+                self._await({MSG_READY}, per_try)
+            except TimeoutError:
+                continue
+            assert self.geometry is not None
+            return self.geometry
+
+        raise TimeoutError(
+            "Kein READY-Token empfangen. Probiert: "
+            + ", ".join(str(b) for b in candidates)
+            + ".\n  Haengt ein serieller Monitor am selben Port? "
+            "Stimmt MX_SERIAL_BAUD in FW/mx8_config.h?"
+        )
 
     def _cmd_ack(self, cmd: int, payload: bytes = b"") -> None:
         self._send(cmd, payload)
@@ -286,6 +329,22 @@ class MatrixLink:
         """
         self._send(CMD_FRAME, self._check_frame(pixels))
         self.stats["frames_sent"] += 1
+
+    def send_raw(self, start: int, pixels: bytes) -> None:
+        """Schreibt OHNE Pixel-Mapping direkt in die LED-Kette.
+
+        ``start`` ist der Kettenindex des ersten Pixels, ``pixels`` sind
+        3*n Byte RGB. Alle uebrigen LEDs werden schwarz.
+
+        Nur zum Ausmessen der Panel-Verdrahtung gedacht (script/mapcheck.py):
+        weil hier nichts umsortiert wird, zeigt das Panel die Kette so, wie
+        sie physisch verloetet ist.
+        """
+        if len(pixels) % 3:
+            raise ValueError(f"pixels braucht ein Vielfaches von 3 Byte, hat {len(pixels)}")
+        if start < 0 or start > 0xFFFF:
+            raise ValueError(f"start {start} ausserhalb 0..65535")
+        self._cmd_ack(CMD_RAW, struct.pack("<H", start) + bytes(pixels))
 
     def _check_frame(self, pixels: bytes) -> bytes:
         expected = self.geometry.frame_bytes if self.geometry else 192

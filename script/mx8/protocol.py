@@ -17,7 +17,7 @@ SYNC0 = 0xA5
 SYNC1 = 0x5A
 SYNC = bytes((SYNC0, SYNC1))
 OVERHEAD_BYTES = 7  # SYNC0 SYNC1 CMD LEN_LO LEN_HI ... CRC_LO CRC_HI
-MAX_PAYLOAD = 512
+MAX_PAYLOAD = 4096  # == MX_PROTO_MAX_PAYLOAD in FW/mx8_protocol.h
 
 # PC -> Nano
 CMD_FRAME = 0x01
@@ -26,6 +26,7 @@ CMD_SET_BRIGHTNESS = 0x03
 CMD_CLEAR = 0x04
 CMD_HELLO = 0x05
 CMD_RELEASE = 0x06
+CMD_RAW = 0x07  # ohne Mapping direkt in die Kette (script/mapcheck.py)
 
 # Nano -> PC
 MSG_READY = 0x81
@@ -40,6 +41,7 @@ CMD_NAMES = {
     CMD_CLEAR: "CLEAR",
     CMD_HELLO: "HELLO",
     CMD_RELEASE: "RELEASE",
+    CMD_RAW: "RAW",
     MSG_READY: "READY",
     MSG_ACK: "ACK",
     MSG_NACK: "NACK",

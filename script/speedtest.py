@@ -36,30 +36,86 @@ from mx8.protocol import OVERHEAD_BYTES
 BITS_PER_BYTE = 10  # 8N1: 1 Start + 8 Daten + 1 Stopp
 ACK_FRAME_BYTES = OVERHEAD_BYTES + 1
 
+# WS2812B: 800 kHz Einzeldraht, 1,25 us je Bit, 24 Bit je LED, danach eine
+# Reset-Pause. Das ist ein FESTES Zeitbudget pro Bild, unabhaengig von allem
+# anderen -- und ab ein paar hundert LEDs der eigentliche Flaschenhals.
+WS2812_BIT_S = 1.25e-6
+WS2812_RESET_S = 300e-6
+WS2812_BITS_PER_LED = 24
+
+
+def led_refresh_s(num_leds: int, strands: int = 1) -> float:
+    """Dauer eines FastLED-show() fuer ``num_leds`` LEDs.
+
+    ``strands`` = Anzahl parallel angesteuerter Straenge. FastLED kann mehrere
+    Pins gleichzeitig takten, das teilt die Zeit entsprechend auf.
+    """
+    per_strand = math.ceil(num_leds / max(1, strands))
+    return per_strand * WS2812_BITS_PER_LED * WS2812_BIT_S + WS2812_RESET_S
+
 
 # ---------------------------------------------------------------------------
-def theory(baud: int, frame_bytes: int) -> dict[str, float]:
-    """Was die Baudrate physikalisch hergibt -- ohne jede Software-Latenz."""
+def theory(baud: int, frame_bytes: int, bpp: int = 3,
+           strands: int = 1, overlap: bool = False) -> dict[str, float]:
+    """Die zwei harten Grenzen: serielle Strecke und LED-Protokoll.
+
+    Ob sie sich addieren, entscheidet die Plattform:
+
+    ``overlap=False`` (AVR, Standardfall): FastLED taktet die LEDs per Bitbang
+    aus und sperrt dabei die Interrupts. Der Controller kann in dieser Zeit
+    nichts empfangen -- die Zeiten addieren sich.
+
+    ``overlap=True`` (RP2040): der PIO-Treiber schiebt die Bits per DMA raus.
+    showPixels() wartet nur auf die VORHERIGE Uebertragung und kehrt dann
+    zurueck, Interrupts bleiben an (FASTLED_ALLOW_INTERRUPTS ist dort auf 1).
+    Empfangen und Austakten laufen also gleichzeitig -- es zaehlt der laengere
+    der beiden Wege, nicht die Summe.
+    """
     tx = (OVERHEAD_BYTES + frame_bytes) * BITS_PER_BYTE / baud
     rx = ACK_FRAME_BYTES * BITS_PER_BYTE / baud
+    num_leds = frame_bytes // bpp
+    led = led_refresh_s(num_leds, strands)
+    total = max(tx + rx, led) if overlap else (tx + rx + led)
     return {
         "frame_on_wire_bytes": OVERHEAD_BYTES + frame_bytes,
+        "num_leds": num_leds,
         "tx_s": tx,
         "rx_s": rx,
-        "fps_stream": 1.0 / tx,        # ohne ACK-Wartezeit
-        "fps_acked": 1.0 / (tx + rx),  # mit ACK-Quittung, so wie wir senden
+        "led_s": led,
+        "total_s": total,
+        "overlap": overlap,
+        "fps_stream": 1.0 / tx,           # ohne ACK-Wartezeit
+        "fps_acked": 1.0 / (tx + rx),     # nur serielle Strecke
+        "fps_led": 1.0 / led,             # nur LED-Protokoll
+        "fps_total": 1.0 / total,         # beides, so wie es wirklich laeuft
     }
 
 
-def print_theory(baud: int, frame_bytes: int) -> dict[str, float]:
-    th = theory(baud, frame_bytes)
-    print(f"\n  Theoretisches Limit bei {baud} Baud")
+def print_theory(baud: int, frame_bytes: int, strands: int = 1,
+                 overlap: bool = False) -> dict[str, float]:
+    th = theory(baud, frame_bytes, strands=strands, overlap=overlap)
+    ser = th["tx_s"] + th["rx_s"]
+    print(f"\n  Theoretische Grenzen")
     print(f"    Frame auf der Leitung     {th['frame_on_wire_bytes']:.0f} B "
           f"({frame_bytes} B Bild + {OVERHEAD_BYTES} B Protokoll)")
-    print(f"    reine Sendezeit           {th['tx_s'] * 1000:.2f} ms  "
-          f"-> {th['fps_stream']:.1f} fps")
-    print(f"    + ACK zurueck             {th['rx_s'] * 1000:.2f} ms  "
-          f"-> {th['fps_acked']:.1f} fps  <- unser Verfahren")
+    print(f"    a) seriell @ {baud} Baud  {ser * 1000:7.2f} ms  "
+          f"-> {th['fps_acked']:6.1f} fps")
+    print(f"    b) WS2812B-Ausgabe        {th['led_s'] * 1000:7.2f} ms  "
+          f"-> {th['fps_led']:6.1f} fps"
+          + (f"   ({strands} parallele Straenge)" if strands > 1 else ""))
+    if overlap:
+        print(f"    max(a, b) -- RP2040       {th['total_s'] * 1000:7.2f} ms  "
+              f"-> {th['fps_total']:6.1f} fps  <- das ist die Obergrenze")
+        print(f"       PIO+DMA taktet im Hintergrund aus, waehrend schon das")
+        print(f"       naechste Bild hereinkommt.")
+    else:
+        print(f"    a + b (addiert sich)      {th['total_s'] * 1000:7.2f} ms  "
+              f"-> {th['fps_total']:6.1f} fps  <- das ist die Obergrenze")
+    dom = "die serielle Strecke" if th["led_s"] < ser else "das LED-Protokoll"
+    print(f"    Dominant ist {dom}.")
+    if th["led_s"] >= ser:
+        print(f"    -> Mehr Baud bringt hier wenig. Abhilfe: LEDs auf mehrere Pins")
+        print(f"       aufteilen (--strands) oder auf getaktete Chips (APA102) wechseln.")
     return th
 
 
@@ -183,6 +239,11 @@ def main(argv=None) -> int:
                    help="Standard: MX8_BAUD, sonst 115200")
     ap.add_argument("--seconds", type=float, default=8.0, help="Dauer der Durchsatzmessung")
     ap.add_argument("--pings", type=int, default=40)
+    ap.add_argument("--strands", type=int, default=1,
+                    help="parallel angesteuerte LED-Straenge (FastLED-Multi-Pin)")
+    ap.add_argument("--rp2040", action="store_true",
+                    help="RP2040-Modell: PIO+DMA taktet im Hintergrund aus, "
+                         "Uebertragung und show() ueberlappen sich")
     ap.add_argument("--flood", action="store_true", help="zusaetzlich den Stresstest fahren")
     ap.add_argument("--flood-count", type=int, default=200)
     ap.add_argument("--brightness", type=int, default=None)
@@ -197,12 +258,28 @@ def main(argv=None) -> int:
     print("=" * 68)
 
     if args.preview:
-        for baud in (9600, 57600, 115200, 250000, 500000, 1000000):
-            th = theory(baud, 192)
-            print(f"  {baud:>8} Baud   {th['tx_s'] * 1000:6.2f} ms/Frame   "
-                  f"{th['fps_acked']:6.1f} fps mit ACK   "
-                  f"{th['fps_stream']:6.1f} fps ohne")
-        print("\n  (Werte fuer ein 8x8-Panel: 192 B Bild + 7 B Protokoll.)")
+        panels = [("8x8", 64), ("8x32", 256), ("16x16", 256),
+                  ("16x32", 512), ("32x32", 1024)]
+        print("\n  Obergrenze je Panelgroesse und Baudrate (fps)")
+        if args.rp2040:
+            print("  RP2040-Modell: PIO+DMA taktet die LEDs im Hintergrund aus, waehrend")
+            print("  schon das naechste Bild hereinkommt -- es zaehlt der laengere Weg.\n")
+        else:
+            print("  Die WS2812B-Ausgabe kostet unabhaengig von der Baudrate Zeit und")
+            print("  addiert sich zur Uebertragung -- ab ein paar hundert LEDs dominiert sie.\n")
+        head = "  Panel    LEDs   show()  " + "".join(f"{b // 1000:>7}k" for b in
+                                                      (115200, 250000, 500000, 1000000, 2000000))
+        print(head)
+        print("  " + "-" * (len(head) - 2))
+        for name, leds in panels:
+            th0 = theory(115200, leds * 3, strands=args.strands, overlap=args.rp2040)
+            row = f"  {name:<7} {leds:>5}  {th0['led_s'] * 1000:6.2f}ms "
+            for baud in (115200, 250000, 500000, 1000000, 2000000):
+                t = theory(baud, leds * 3, strands=args.strands, overlap=args.rp2040)
+                row += f"{t['fps_total']:8.1f}"
+            print(row)
+        print(f"\n  show() bei {args.strands} Strang"
+              + ("" if args.strands == 1 else "/Straengen") + ".")
         print("  Ohne Hardware endet der Test hier -- fuer echte Messungen den")
         print("  Nano anstecken und ohne --preview starten.")
         return 0
@@ -217,7 +294,7 @@ def main(argv=None) -> int:
         if args.brightness is not None:
             link.set_brightness(args.brightness)
 
-        th = print_theory(link.baud, geo.frame_bytes)
+        th = print_theory(link.baud, geo.frame_bytes, args.strands, args.rp2040)
         measure_latency(link, args.pings)
         measure_throughput(link, args.seconds, th)
         if args.flood:
