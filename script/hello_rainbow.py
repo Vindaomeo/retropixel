@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Lauftext in Regenbogenfarben auf der 8x8-Matrix.
+"""Scrolling text in rainbow colors on the 8x8 matrix.
 
-    python hello_rainbow.py                          # "Hello World" aufs Panel
-    python hello_rainbow.py --preview                # im Terminal, ohne Hardware
+    python hello_rainbow.py                          # "Hello World" on the panel
+    python hello_rainbow.py --preview                # in the terminal, no hardware
     python hello_rainbow.py --text "Grüße!" --speed 12
     python hello_rainbow.py --loops 3 --release
 
-Die Farbe haengt an der *Textspalte*, nicht an der Displayspalte. Der Regenbogen
-wandert also mit den Buchstaben mit, statt dass die Buchstaben durch einen
-stehenden Farbverlauf laufen -- das sieht deutlich lebendiger aus.
+The color is tied to the *text column*, not the display column. So the rainbow
+travels along with the letters instead of the letters running through a
+stationary color gradient -- that looks noticeably more alive.
 """
 
 from __future__ import annotations
@@ -36,11 +36,11 @@ def render(
     smooth: bool,
     y_off: int,
 ) -> None:
-    """Zeichnet den Text an Scroll-Position ``pos`` (Textspalten) in den Puffer.
+    """Draws the text at scroll position ``pos`` (in text columns) into the buffer.
 
-    ``pos`` darf gebrochen sein: dann wird zwischen zwei Textspalten
-    ueberblendet. Auf einer 8x8-Matrix wirkt das erstaunlich fluessig --
-    der Text gleitet, statt in Pixelschritten zu springen.
+    ``pos`` may be fractional: then two text columns are cross-faded.
+    On an 8x8 matrix this looks surprisingly smooth -- the text glides
+    instead of jumping in pixel steps.
     """
     fb.clear()
     base = math.floor(pos)
@@ -60,7 +60,7 @@ def render(
             if v <= 0.01:
                 continue
 
-            # Farbton aus der absoluten Textspalte -> Regenbogen wandert mit
+            # Hue from the absolute text column -> rainbow travels along
             hue = (cx * hue_scale + t * hue_speed) % 1.0
             r, g, bl = colorsys.hsv_to_rgb(hue, 1.0, v)
             fb.set(x, y + y_off, int(r * 255), int(g * 255), int(bl * 255))
@@ -71,35 +71,35 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    ap.add_argument("--text", default="Hello World", help='Standard: "Hello World"')
-    ap.add_argument("-p", "--port", help="z. B. COM4 oder /dev/ttyACM0 (sonst MX8_PORT bzw. Auto)")
+    ap.add_argument("--text", default="Hello World", help='default: "Hello World"')
+    ap.add_argument("-p", "--port", help="e.g. COM4 or /dev/ttyACM0 (otherwise MX8_PORT or auto)")
     ap.add_argument("-b", "--baud", type=int, default=None,
-                   help="Standard: MX8_BAUD, sonst 115200")
+                   help="default: MX8_BAUD, otherwise 115200")
     ap.add_argument("--brightness", type=int, default=None, help="0..255")
-    ap.add_argument("--speed", type=float, default=8.0, help="Textspalten pro Sekunde")
-    ap.add_argument("--fps", type=float, default=40.0, help="Bildrate")
+    ap.add_argument("--speed", type=float, default=8.0, help="text columns per second")
+    ap.add_argument("--fps", type=float, default=40.0, help="frame rate")
     ap.add_argument("--hue-scale", type=float, default=0.035,
-                    help="Farbaenderung pro Textspalte (0 = einfarbig)")
+                    help="hue change per text column (0 = single color)")
     ap.add_argument("--hue-speed", type=float, default=0.15,
-                    help="Wanderung des Regenbogens pro Sekunde")
-    ap.add_argument("--loops", type=int, default=0, help="Durchlaeufe, 0 = endlos")
+                    help="rainbow drift per second")
+    ap.add_argument("--loops", type=int, default=0, help="passes, 0 = endless")
     ap.add_argument("--hard", action="store_true",
-                    help="ohne Subpixel-Ueberblendung, Text springt in Pixelschritten")
-    ap.add_argument("--preview", action="store_true", help="Terminal statt Hardware")
+                    help="no subpixel cross-fade, text jumps in pixel steps")
+    ap.add_argument("--preview", action="store_true", help="terminal instead of hardware")
     ap.add_argument("--release", action="store_true",
-                    help="am Ende RELEASE senden (Nano zeigt wieder sein Testpattern)")
+                    help="send RELEASE at the end (Nano goes back to its test pattern)")
     args = ap.parse_args(argv)
 
     tb = TextBitmap(args.text)
     if not len(tb):
-        print("Leerer Text.", file=sys.stderr)
+        print("Empty text.", file=sys.stderr)
         return 2
 
     fb = Framebuffer(8, 8)
     y_off = max(0, (8 - GLYPH_H) // 2)
     smooth = not args.hard
 
-    # Startposition: Text steht rechts ausserhalb; Ende: komplett links raus.
+    # Start position: text sits off the right edge; end: fully off to the left.
     start, end = -fb.width, len(tb)
     span = end - start
 
@@ -117,9 +117,9 @@ def main(argv=None) -> int:
         if args.brightness is not None:
             link.set_brightness(args.brightness)
 
-    print(f'Text     "{args.text}"  ({len(tb)} Spalten)')
-    print(f"Lauf     {args.speed:g} Spalten/s, {args.fps:g} fps, "
-          f"{'weich' if smooth else 'hart'}  —  Strg-C beendet\n")
+    print(f'Text     "{args.text}"  ({len(tb)} columns)')
+    print(f"Scroll   {args.speed:g} columns/s, {args.fps:g} fps, "
+          f"{'smooth' if smooth else 'hard'}  —  Ctrl-C quits\n")
 
     if args.preview:
         print("\033[?25l", end="")
@@ -161,9 +161,9 @@ def main(argv=None) -> int:
         if link:
             dur = time.monotonic() - t0
             s = link.stats
-            print(f"\n{s['frames_sent']} Frames in {dur:.1f} s = "
+            print(f"\n{s['frames_sent']} frames in {dur:.1f} s = "
                   f"{s['frames_sent'] / dur:.1f} fps"
-                  f"  ({s['nacks']} NACK, {s['crc_errors']} CRC-Fehler)")
+                  f"  ({s['nacks']} NACK, {s['crc_errors']} CRC errors)")
             try:
                 link.release() if args.release else link.clear()
             except Exception:
@@ -177,7 +177,7 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except LinkError as e:
-        print(f"Fehler: {e}", file=sys.stderr)
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
     except TimeoutError as e:
         print(f"Timeout: {e}", file=sys.stderr)

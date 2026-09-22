@@ -1,34 +1,33 @@
 #!/usr/bin/env python3
-"""rainbow -- ein Regenbogen ueber die ganze Flaeche, in Bewegung.
+"""rainbow -- a rainbow across the whole area, in motion.
 
-Sechs Muster, alle ueber dieselbe Mechanik: jedes Pixel bekommt einen Farbton
-aus einem Feld ``hue(x, y, t)``, gesaettigt und voll aufgedreht. Der Unterschied
-zwischen den Mustern ist nur, wie dieses Feld aussieht.
+Six patterns, all using the same mechanism: every pixel gets a hue from a
+field ``hue(x, y, t)``, fully saturated and turned all the way up. The only
+difference between the patterns is what that field looks like.
 
-    python rainbow.py                     waagrechter Lauf, 40 fps
-    python rainbow.py --mode radial       Ringe aus der Mitte
-    python rainbow.py --mode spiral       Spirale
-    python rainbow.py --cycles 2          zwei volle Regenboegen nebeneinander
-    python rainbow.py --speed 0.15        langsamer wandern
+    python rainbow.py                     horizontal sweep, 40 fps
+    python rainbow.py --mode radial       rings from the center
+    python rainbow.py --mode spiral       spiral
+    python rainbow.py --cycles 2          two full rainbows side by side
+    python rainbow.py --speed 0.15        move more slowly
     python rainbow.py --seconds 30 --release
-    python rainbow.py --preview           im Terminal, ohne Hardware
+    python rainbow.py --preview           in the terminal, no hardware
 
-Muster:
-    linear     Farbverlauf ueber die Breite, wandert nach rechts
-    vertical   ueber die Hoehe, wandert nach unten
-    diagonal   45 Grad -- betont, dass beide Panels eine Flaeche sind
-    radial     konzentrische Ringe aus der Mitte, rund trotz 2:1-Flaeche
-    spiral     Winkel plus Abstand
-    wave       waagrecht, aber mit sinusfoermigem Versatz je Zeile
+Patterns:
+    linear     gradient across the width, moves to the right
+    vertical   across the height, moves downwards
+    diagonal   45 degrees -- emphasizes that both panels are one area
+    radial     concentric rings from the center, round despite the 2:1 area
+    spiral     angle plus distance
+    wave       horizontal, but with a sinusoidal offset per row
 
-``--cycles 1`` heisst immer "genau ein voller Regenbogen ueber die Flaeche" --
-bei den Verlaeufen von Rand zu Rand, bei radial/spiral von der Mitte bis in
-die Ecke.
+``--cycles 1`` always means "exactly one full rainbow across the area" --
+edge to edge for the gradients, center to corner for radial/spiral.
 
-Zur Helligkeit: 512 WS2812B auf Vollweiss waeren 30,7 A. Ein Regenbogen ist
-zwar nie weiss, aber flaechendeckend hell -- deshalb ist die Standardhelligkeit
-bewusst niedrig. FastLED deckelt zusaetzlich auf MX_MAX_MILLIAMPS und regelt
-notfalls selbst herunter.
+On brightness: 512 WS2812B at full white would be 30.7 A. A rainbow is
+never white, but it is bright across the whole area -- which is why the
+default brightness is deliberately low. FastLED additionally caps at
+MX_MAX_MILLIAMPS and throttles itself if necessary.
 """
 
 from __future__ import annotations
@@ -41,23 +40,23 @@ from typing import Callable, NamedTuple, Optional
 
 from mx8 import Framebuffer, MatrixLink
 
-#: hue(nx, ny, t) -> Farbton in Umdrehungen. t ist die verstrichene Phase,
-#: ebenfalls in Umdrehungen. Was nx/ny bedeuten, haengt an ``aspect``:
+#: hue(nx, ny, t) -> hue in turns. t is the elapsed phase, also in turns.
+#: What nx/ny mean depends on ``aspect``:
 #:
-#:   aspect = False  ("Verlauf"):  jede Achse einzeln auf -1..+1 gestreckt.
-#:                   Damit passt genau ein voller Regenbogen auf die Flaeche,
-#:                   egal wie die Seiten stehen.
-#:   aspect = True   ("Geometrie"): beide Achsen mit DEMSELBEN Massstab, so
-#:                   dass die Ecken bei Abstand 1,0 liegen. Nur so bleiben die
-#:                   Ringe von ``radial`` auf einer 32x16-Flaeche rund und
-#:                   nicht oval -- und der Regenbogen reicht trotzdem genau
-#:                   von der Mitte bis in die Ecke.
+#:   aspect = False  ("gradient"): each axis stretched to -1..+1 on its own.
+#:                   That way exactly one full rainbow fits on the area,
+#:                   whatever the aspect ratio.
+#:   aspect = True   ("geometry"): both axes on THE SAME scale, so that
+#:                   the corners lie at distance 1.0. Only this way do the
+#:                   rings of ``radial`` stay round on a 32x16 area instead
+#:                   of oval -- and the rainbow still reaches exactly from
+#:                   the center to the corner.
 HueField = Callable[[float, float, float], float]
 
 
 class Mode(NamedTuple):
     field: HueField
-    aspect: bool          # True = Massstab beider Achsen gleich
+    aspect: bool          # True = same scale on both axes
     doc: str
 
 
@@ -78,7 +77,7 @@ def _radial(nx: float, ny: float, t: float) -> float:
 
 
 def _spiral(nx: float, ny: float, t: float) -> float:
-    # Winkel in Umdrehungen plus Abstand -- ergibt eine wandernde Schnecke.
+    # Angle in turns plus distance -- gives a moving snail shell.
     return math.atan2(ny, nx) / (2 * math.pi) + math.hypot(nx, ny) - t
 
 
@@ -87,23 +86,23 @@ def _wave(nx: float, ny: float, t: float) -> float:
 
 
 MODES: dict[str, Mode] = {
-    "linear":   Mode(_linear,   False, "Verlauf ueber die Breite, wandert nach rechts"),
-    "vertical": Mode(_vertical, False, "Verlauf ueber die Hoehe, wandert nach unten"),
-    "diagonal": Mode(_diagonal, False, "45 Grad ueber beide Panels"),
-    "radial":   Mode(_radial,   True,  "konzentrische Ringe aus der Mitte"),
-    "spiral":   Mode(_spiral,   True,  "Winkel plus Abstand"),
-    "wave":     Mode(_wave,     False, "waagrecht mit sinusfoermigem Versatz je Zeile"),
+    "linear":   Mode(_linear,   False, "gradient across the width, moves to the right"),
+    "vertical": Mode(_vertical, False, "gradient across the height, moves downwards"),
+    "diagonal": Mode(_diagonal, False, "45 degrees across both panels"),
+    "radial":   Mode(_radial,   True,  "concentric rings from the center"),
+    "spiral":   Mode(_spiral,   True,  "angle plus distance"),
+    "wave":     Mode(_wave,     False, "horizontal with a sinusoidal offset per row"),
 }
 
 
 def render(fb: Framebuffer, mode: Mode, t: float,
            cycles: float = 1.0, sat: float = 1.0, val: float = 1.0) -> None:
-    """Ein Bild in den Framebuffer zeichnen."""
+    """Draw one frame into the framebuffer."""
     w, h = fb.width, fb.height
     cx, cy = (w - 1) / 2.0, (h - 1) / 2.0
 
     if mode.aspect:
-        # Ecken auf Abstand 1,0 -- gleicher Massstab fuer beide Achsen.
+        # Corners at distance 1.0 -- same scale for both axes.
         r = math.hypot(cx, cy) or 1.0
         sx = sy = r
     else:
@@ -119,42 +118,42 @@ def render(fb: Framebuffer, mode: Mode, t: float,
 
 def main(argv: Optional[list[str]] = None) -> int:
     ap = argparse.ArgumentParser(
-        description="Regenbogen ueber die ganze Flaeche.",
+        description="Rainbow across the whole area.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
-    ap.add_argument("-p", "--port", help="z. B. COM4 (sonst MX8_PORT / Autoerkennung)")
+    ap.add_argument("-p", "--port", help="e.g. COM4 (otherwise MX8_PORT / auto-detect)")
     ap.add_argument("-b", "--baud", type=int, default=None)
     ap.add_argument("--mode", default="linear", choices=sorted(MODES),
-                    help="Muster (Standard linear)")
+                    help="pattern (default linear)")
     ap.add_argument("--all", action="store_true",
-                    help="alle Muster nacheinander zeigen, je --seconds lang")
-    ap.add_argument("--fps", type=float, default=40.0, help="Zielbildrate (Standard 40)")
+                    help="show all patterns in turn, --seconds each")
+    ap.add_argument("--fps", type=float, default=40.0, help="target frame rate (default 40)")
     ap.add_argument("--speed", type=float, default=0.25,
-                    help="Regenbogen-Umdrehungen je Sekunde (Standard 0,25)")
+                    help="rainbow turns per second (default 0.25)")
     ap.add_argument("--cycles", type=float, default=1.0,
-                    help="volle Regenboegen ueber die Flaeche (Standard 1)")
-    ap.add_argument("--sat", type=float, default=1.0, help="Saettigung 0..1")
+                    help="full rainbows across the area (default 1)")
+    ap.add_argument("--sat", type=float, default=1.0, help="saturation 0..1")
     ap.add_argument("--brightness", type=int, default=48,
-                    help="Panel-Helligkeit 0..255 (Standard 48 -- 512 LEDs sind viel)")
+                    help="panel brightness 0..255 (default 48 -- 512 LEDs is a lot)")
     ap.add_argument("--seconds", type=float, default=0.0,
-                    help="Laufzeit je Muster, 0 = endlos")
+                    help="run time per pattern, 0 = endless")
     ap.add_argument("--size", default="32x16",
-                    help="nur mit --preview: Flaeche BREITExHOEHE")
-    ap.add_argument("--preview", action="store_true", help="Terminal statt Hardware")
+                    help="only with --preview: area WIDTHxHEIGHT")
+    ap.add_argument("--preview", action="store_true", help="terminal instead of hardware")
     ap.add_argument("--release", action="store_true",
-                    help="am Ende RELEASE senden statt CLEAR")
+                    help="send RELEASE instead of CLEAR at the end")
     args = ap.parse_args(argv)
 
     if args.fps <= 0:
-        raise SystemExit("--fps muss groesser als 0 sein")
+        raise SystemExit("--fps must be greater than 0")
 
     link = None
     if args.preview:
         try:
             width, height = (int(v) for v in args.size.lower().split("x"))
         except ValueError:
-            raise SystemExit("--size braucht die Form BREITExHOEHE, z. B. 32x16")
+            raise SystemExit("--size needs the form WIDTHxHEIGHT, e.g. 32x16")
     else:
         link = MatrixLink(args.port, args.baud, ack_timeout=1.0,
                           on_log=lambda s: print(f"  LOG  {s}"))
@@ -170,13 +169,13 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     fb = Framebuffer(width, height)
     period = 1.0 / args.fps
-    print(f"Flaeche   {width}x{height} = {width * height} Pixel")
-    print(f"Muster    {', '.join(modes)}")
-    print(f"Bewegung  {args.speed:g} Umdrehungen/s, {args.cycles:g} Regenbogen "
-          f"ueber die Flaeche")
-    print(f"Ziel      {args.fps:g} fps"
-          + (f", {seconds:g} s je Muster" if seconds else ", endlos")
-          + "   Strg-C beendet\n")
+    print(f"Area      {width}x{height} = {width * height} pixels")
+    print(f"Patterns  {', '.join(modes)}")
+    print(f"Motion    {args.speed:g} turns/s, {args.cycles:g} rainbow(s) "
+          f"across the area")
+    print(f"Target    {args.fps:g} fps"
+          + (f", {seconds:g} s per pattern" if seconds else ", endless")
+          + "   Ctrl-C quits\n")
 
     if args.preview:
         print("\033[?25l", end="")
@@ -203,7 +202,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                     link.send_frame(fb.to_bytes())
                 frames += 1
 
-                # Auf das naechste Raster warten; verpasste Frames nicht nachholen.
+                # Wait for the next tick; do not catch up on missed frames.
                 next_frame += period
                 sleep = next_frame - time.monotonic()
                 if sleep > 0:
@@ -219,7 +218,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         print()
         return 130
     except (TimeoutError, OSError) as e:
-        print(f"\nVerbindung verloren: {e}")
+        print(f"\nConnection lost: {e}")
         return 1
     finally:
         if args.preview:

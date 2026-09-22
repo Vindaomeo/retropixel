@@ -1,9 +1,9 @@
 /* ===========================================================================
- *  c_parser_test.c -- Host-Harness um die ECHTE Firmware-Logik.
+ *  c_parser_test.c -- host harness around the REAL firmware logic.
  *
- *  Kompiliert mx8_protocol.h und mx8_rx.h unveraendert mit einem PC-Compiler
- *  und macht sie ueber stdin/stdout ansprechbar. tests/test_protocol.py
- *  vergleicht die Ausgabe Byte fuer Byte mit der Python-Implementierung.
+ *  Compiles mx8_protocol.h and mx8_rx.h unmodified with a PC compiler
+ *  and makes them reachable via stdin/stdout. tests/test_protocol.py
+ *  compares the output byte for byte with the Python implementation.
  *
  *  build:  cc -O2 -Wall -Wextra -I../FW \
  *              c_parser_test.c -o c_parser_test
@@ -16,11 +16,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MX_MAX_PAYLOAD 200 /* == mx8_config.h: 8*8*3 + 8 */
+/* Deliberately small and fixed: this checks the framing, not the
+ * panel geometry. The real values come from mx8_config.h. */
+#define MX_MAX_PAYLOAD 200
 #include "mx8_protocol.h"
 #include "mx8_rx.h"
 
-/* -- Hex-Helfer ---------------------------------------------------------- */
+/* -- Hex helpers --------------------------------------------------------- */
 static int hex2bin(const char *hex, uint8_t *out, size_t cap) {
     size_t n = strlen(hex);
     if (n % 2) return -1;
@@ -83,7 +85,7 @@ int main(int argc, char **argv) {
         MxRx rx;
         mxrx_init(&rx, on_msg, on_err, NULL);
         for (int i = 0; i < n; i++) mxrx_byte(&rx, buf[i], 0);
-        /* Timeout-Pfad: simuliert "danach kam lange nichts mehr". */
+        /* Timeout path: simulates "then nothing arrived for a long time". */
         mxrx_tick(&rx, MX_RX_FRAME_TIMEOUT_MS + 1);
         return 0;
     }

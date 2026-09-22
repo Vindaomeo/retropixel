@@ -1,5 +1,5 @@
-"""Demo-Animationen fuer den Host. Jede Funktion zeichnet einen Zeitpunkt ``t``
-(in Sekunden) in den Framebuffer."""
+"""Demo animations for the host. Each function draws the moment ``t``
+(in seconds) into the framebuffer."""
 
 from __future__ import annotations
 
@@ -52,15 +52,15 @@ def fire(fb: Framebuffer, t: float) -> None:
     if len(_fire_heat) != n:
         _fire_heat = [0.0] * n
 
-    for i in range(n):  # abkuehlen
+    for i in range(n):  # cool down
         _fire_heat[i] = max(0.0, _fire_heat[i] - random.uniform(0.0, 0.28))
-    for y in range(fb.height - 1):  # Hitze steigt auf
+    for y in range(fb.height - 1):  # heat rises
         for x in range(fb.width):
             _fire_heat[y * fb.width + x] = (
                 _fire_heat[(y + 1) * fb.width + x] * 0.62
                 + _fire_heat[min(fb.height - 1, y + 2) * fb.width + x] * 0.33
             )
-    for x in range(fb.width):  # Glutnester in der untersten Zeile
+    for x in range(fb.width):  # embers in the bottom row
         if random.random() < 0.55:
             _fire_heat[(fb.height - 1) * fb.width + x] = random.uniform(0.7, 1.0)
 
@@ -81,7 +81,7 @@ def checker(fb: Framebuffer, t: float) -> None:
 
 
 def bounce(fb: Framebuffer, t: float) -> None:
-    """Zwei Balken, die im Rechteck aneinander vorbeilaufen."""
+    """Two bars sweeping past each other inside the rectangle."""
     fb.fade(0.6)
     col = int((math.sin(t * 2.1) * 0.5 + 0.5) * (fb.width - 1) + 0.5)
     row = int((math.cos(t * 1.4) * 0.5 + 0.5) * (fb.height - 1) + 0.5)

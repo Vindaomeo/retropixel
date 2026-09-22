@@ -1,4 +1,4 @@
-"""MatrixLink -- serielle Verbindung zum Arduino."""
+"""MatrixLink -- serial connection to the Arduino."""
 
 from __future__ import annotations
 
@@ -32,21 +32,21 @@ from .protocol import (
     encode,
 )
 
-#: Umgebungsvariablen, damit man Port/Baud nicht bei jedem Aufruf tippen muss.
-#: Beispiel (PowerShell):  $env:MX8_PORT = "COM4"
+#: Environment variables, so you don't have to type port/baud on every call.
+#: Example (PowerShell):  $env:MX8_PORT = "COM4"
 ENV_PORT = "MX8_PORT"
 ENV_BAUD = "MX8_BAUD"
 
 DEFAULT_BAUD = 115200
 
-#: Raten, die ``wait_ready`` durchprobiert, wenn beim eingestellten Wert kein
-#: READY kommt. Absteigend, damit die schnelle Verbindung zuerst gewinnt.
-#: Bei nativem USB-CDC (Pico) ist die Zahl ohnehin wirkungslos -- dort trifft
-#: gleich der erste Versuch. Ein explizites ``-b`` schaltet die Suche ab.
+#: Rates that ``wait_ready`` tries if no READY arrives at the configured
+#: value. Descending, so the fast connection wins first.
+#: With native USB CDC (Pico) the number has no effect anyway -- there the
+#: first attempt hits. An explicit ``-b`` disables the search.
 BAUD_CANDIDATES = (1_000_000, 500_000, 250_000, 115_200)
 
-# Original-Arduino-Boards melden sich mit eigener USB-VID (Nano Every ueber
-# seinen SAMD11-Bridge-Chip, Uno/Mega ueber den 16u2).
+# Genuine Arduino boards report their own USB VID (Nano Every via its
+# SAMD11 bridge chip, Uno/Mega via the 16u2).
 _ARDUINO_VIDS = {
     0x2341: "Arduino",
     0x2A03: "Arduino (arduino.org)",
@@ -54,10 +54,10 @@ _ARDUINO_VIDS = {
     0x239A: "Adafruit",
 }
 
-# Klone und der klassische Nano haengen an einem generischen USB-Seriell-Wandler.
-# Diese VIDs sind NICHT arduino-spezifisch -- daran kann genauso ein Funkmodul
-# oder ein Messgeraet haengen. Deshalb nur als zweite Wahl und mit Rueckfrage,
-# sobald mehr als ein Kandidat da ist.
+# Clones and the classic Nano sit behind a generic USB-serial converter.
+# These VIDs are NOT Arduino-specific -- a radio module or a measuring
+# instrument could just as well be behind them. Hence second choice only, and
+# we ask as soon as there is more than one candidate.
 _BRIDGE_VIDS = {
     0x1A86: "CH340/CH341 (QinHeng)",
     0x0403: "FTDI",
@@ -73,12 +73,12 @@ class LinkError(RuntimeError):
 class NackError(LinkError):
     def __init__(self, cmd: int, err: int) -> None:
         self.cmd, self.err = cmd, err
-        super().__init__(f"NACK auf 0x{cmd:02X}: {ERR_NAMES.get(err, f'Code {err}')}")
+        super().__init__(f"NACK on 0x{cmd:02X}: {ERR_NAMES.get(err, f'code {err}')}")
 
 
 def _describe(ports) -> str:
     if not ports:
-        return "keine seriellen Ports gefunden"
+        return "no serial ports found"
     return "\n".join(
         f"    {p.device:<14} {p.description}"
         + (f"  [VID {p.vid:04X}:{p.pid:04X}]" if p.vid else "")
@@ -87,14 +87,14 @@ def _describe(ports) -> str:
 
 
 def find_port(hint: Optional[str] = None) -> str:
-    """Sucht den Arduino-Port.
+    """Finds the Arduino port.
 
-    Reihenfolge: expliziter Parameter -> Umgebungsvariable MX8_PORT ->
-    Board mit Arduino-USB-ID -> generischer USB-Seriell-Wandler (CH340, FTDI,
-    CP210x, PL2303), wie ihn der klassische Nano und die meisten Klone haben.
+    Order: explicit parameter -> environment variable MX8_PORT ->
+    board with an Arduino USB ID -> generic USB-serial converter (CH340, FTDI,
+    CP210x, PL2303), as found on the classic Nano and most clones.
 
-    Bei mehreren Wandlern wird bewusst nicht geraten: dann kommt eine
-    Fehlermeldung mit der Liste, und man waehlt mit ``-p`` aus.
+    With several converters we deliberately don't guess: you get an
+    error message with the list, and pick one with ``-p``.
     """
     if hint:
         return hint
@@ -104,55 +104,55 @@ def find_port(hint: Optional[str] = None) -> str:
 
     ports = list(list_ports.comports())
 
-    # 1) Echtes Arduino-Board -- eindeutig genug, um es einfach zu nehmen.
+    # 1) Genuine Arduino board -- unambiguous enough to just take it.
     for p in ports:
         if p.vid in _ARDUINO_VIDS:
             return p.device
 
-    # 2) Generischer USB-Seriell-Wandler (klassischer Nano, Klone).
+    # 2) Generic USB-serial converter (classic Nano, clones).
     bridges = [p for p in ports if p.vid in _BRIDGE_VIDS]
     if len(bridges) == 1:
         return bridges[0].device
     if len(bridges) > 1:
         raise LinkError(
-            "Mehrere USB-Seriell-Wandler gefunden — bitte mit -p auswaehlen:\n"
+            "Several USB-serial converters found -- please pick one with -p:\n"
             + _describe(bridges)
         )
 
-    # 3) Letzter Versuch ueber den Klartext-Namen.
+    # 3) Last attempt via the plain-text name.
     for p in ports:
         if any(k in (p.description or "").lower() for k in ("arduino", "nano", "usb-serial")):
             return p.device
 
     raise LinkError(
-        "Kein Arduino gefunden. Port bitte mit -p angeben (z. B. -p COM4)\n"
-        f"oder dauerhaft per Umgebungsvariable {ENV_PORT} setzen.\n"
-        "  Verfuegbare Ports:\n" + _describe(ports)
+        "No Arduino found. Please specify the port with -p (e.g. -p COM4)\n"
+        f"or set it permanently via the environment variable {ENV_PORT}.\n"
+        "  Available ports:\n" + _describe(ports)
     )
 
 
 def default_baud() -> int:
-    """Baudrate aus MX8_BAUD, sonst 115200. Muss zu MX_SERIAL_BAUD passen."""
+    """Baud rate from MX8_BAUD, otherwise 115200. Must match MX_SERIAL_BAUD."""
     raw = os.environ.get(ENV_BAUD)
     if not raw:
         return DEFAULT_BAUD
     try:
         return int(raw)
     except ValueError:
-        raise LinkError(f"{ENV_BAUD}={raw!r} ist keine gueltige Baudrate")
+        raise LinkError(f"{ENV_BAUD}={raw!r} is not a valid baud rate")
 
 
 def baud_search_order(first: int) -> list[int]:
-    """``first`` zuerst, danach die uebrigen Kandidaten ohne Wiederholung."""
+    """``first`` first, then the remaining candidates without repeats."""
     return [first] + [b for b in BAUD_CANDIDATES if b != first]
 
 
 class MatrixLink:
-    """Verbindung zum Panel.
+    """Connection to the panel.
 
-    Ein Hintergrund-Thread liest den Port leer und verteilt die Messages:
-    READY/ACK/NACK in eine Queue, LOG in einen Callback. Damit gehen
-    asynchrone READY-Tokens nie verloren, waehrend wir auf ein ACK warten.
+    A background thread drains the port and dispatches the messages:
+    READY/ACK/NACK into a queue, LOG into a callback. That way asynchronous
+    READY tokens never get lost while we are waiting for an ACK.
     """
 
     def __init__(
@@ -163,8 +163,8 @@ class MatrixLink:
         on_log=None,
     ) -> None:
         self.port = find_port(port)
-        #: Wurde die Rate explizit vorgegeben (Argument oder MX8_BAUD)? Dann
-        #: sucht wait_ready nicht -- wer sie setzt, meint sie auch so.
+        #: Was the rate given explicitly (argument or MX8_BAUD)? Then
+        #: wait_ready doesn't search -- whoever sets it means it.
         self.baud_is_explicit = baud is not None or os.environ.get(ENV_BAUD) is not None
         self.baud = baud if baud is not None else default_baud()
         self.ack_timeout = ack_timeout
@@ -183,8 +183,8 @@ class MatrixLink:
     # -- Lifecycle ---------------------------------------------------------
     def open(self, reset_wait: float = 2.0) -> "MatrixLink":
         self._ser = serial.Serial(self.port, self.baud, timeout=0.05)
-        # Der Nano Every resettet beim Oeffnen des Ports (DTR). Kurz warten,
-        # sonst landen unsere ersten Bytes im Bootloader.
+        # The Nano Every resets when the port is opened (DTR). Wait a moment,
+        # otherwise our first bytes end up in the bootloader.
         time.sleep(reset_wait)
         self._ser.reset_input_buffer()
         self._stop.clear()
@@ -207,7 +207,7 @@ class MatrixLink:
     def __exit__(self, *exc) -> None:
         self.close()
 
-    # -- RX-Thread ---------------------------------------------------------
+    # -- RX thread ---------------------------------------------------------
     def _reader(self) -> None:
         assert self._ser is not None
         while not self._stop.is_set():
@@ -228,20 +228,20 @@ class MatrixLink:
 
     def _send(self, cmd: int, payload: bytes = b"") -> None:
         if self._ser is None:
-            raise LinkError("Port nicht geoeffnet")
+            raise LinkError("Port not open")
         with self._tx_lock:
             self._ser.write(encode(cmd, payload))
 
     def _await(self, wanted: set[int], timeout: float) -> Message:
-        """Wartet auf eine Message aus ``wanted``; alles andere wird verworfen."""
+        """Waits for a message from ``wanted``; everything else is discarded."""
         deadline = time.monotonic() + timeout
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise TimeoutError(
-                    "Keine Antwort ("
+                    "No response ("
                     + "/".join(f"0x{c:02X}" for c in sorted(wanted))
-                    + f") innerhalb {timeout:.2f} s"
+                    + f") within {timeout:.2f} s"
                 )
             try:
                 msg = self._rx.get(timeout=remaining)
@@ -254,26 +254,26 @@ class MatrixLink:
 
     # -- Public API --------------------------------------------------------
     def wait_ready(self, timeout: float = 8.0) -> Geometry:
-        """Wartet auf das sekuendliche READY-Token und liefert die Geometrie.
+        """Waits for the once-per-second READY token and returns the geometry.
 
-        Kommt bei der eingestellten Rate nichts, werden die uebrigen aus
-        BAUD_CANDIDATES durchprobiert. Das nimmt die haeufigste Stolperfalle
-        raus: MX_SERIAL_BAUD in der Firmware erhoeht, auf dem Host vergessen.
-        Ein explizites ``-b`` bzw. MX8_BAUD schaltet die Suche ab.
+        If nothing arrives at the configured rate, the rest of
+        BAUD_CANDIDATES are tried. That removes the most common pitfall:
+        MX_SERIAL_BAUD raised in the firmware, forgotten on the host.
+        An explicit ``-b`` or MX8_BAUD disables the search.
         """
         candidates = ([self.baud] if self.baud_is_explicit
                       else baud_search_order(self.baud))
         per_try = timeout if len(candidates) == 1 else max(2.5, timeout / len(candidates))
 
         for i, baud in enumerate(candidates):
-            if i:                                  # Port mit neuer Rate neu oeffnen
-                self.on_log(f"kein READY bei {candidates[i - 1]} Baud, "
-                            f"versuche {baud}")
+            if i:                                  # reopen port at the new rate
+                self.on_log(f"no READY at {candidates[i - 1]} baud, "
+                            f"trying {baud}")
                 self.close()
                 self.baud = baud
                 self.open(reset_wait=0.5)
             try:
-                self._send(CMD_HELLO)   # nicht warten -- er meldet sich ohnehin
+                self._send(CMD_HELLO)   # don't wait -- it announces itself anyway
                 self._await({MSG_READY}, per_try)
             except TimeoutError:
                 continue
@@ -281,10 +281,10 @@ class MatrixLink:
             return self.geometry
 
         raise TimeoutError(
-            "Kein READY-Token empfangen. Probiert: "
+            "No READY token received. Tried: "
             + ", ".join(str(b) for b in candidates)
-            + ".\n  Haengt ein serieller Monitor am selben Port? "
-            "Stimmt MX_SERIAL_BAUD in FW/mx8_config.h?"
+            + ".\n  Is a serial monitor attached to the same port? "
+            "Is MX_SERIAL_BAUD in FW/mx8_config.h right?"
         )
 
     def _cmd_ack(self, cmd: int, payload: bytes = b"") -> None:
@@ -296,7 +296,7 @@ class MatrixLink:
         self.stats["acks"] += 1
 
     def ping(self) -> float:
-        """Round-Trip-Zeit in Sekunden. Unterbricht das Testpattern NICHT."""
+        """Round-trip time in seconds. Does NOT interrupt the test pattern."""
         t0 = time.monotonic()
         self._cmd_ack(CMD_PING)
         return time.monotonic() - t0
@@ -308,55 +308,55 @@ class MatrixLink:
         self._cmd_ack(CMD_CLEAR)
 
     def release(self) -> None:
-        """Display freigeben -- der Nano faellt zurueck aufs Testpattern."""
+        """Release the display -- the Nano falls back to the test pattern."""
         self._cmd_ack(CMD_RELEASE)
 
     def send_frame(self, pixels: bytes) -> None:
-        """Sendet ein Vollbild (row-major RGB) und wartet auf das ACK.
+        """Sends a full frame (row-major RGB) and waits for the ACK.
 
-        Das ACK-Warten ist die Flusskontrolle: FastLED sperrt waehrend show()
-        die Interrupts, ungebremstes Senden wuerde RX-Bytes verlieren.
+        Waiting for the ACK is the flow control: FastLED disables interrupts
+        during show(), and unthrottled sending would lose RX bytes.
         """
         self._cmd_ack(CMD_FRAME, self._check_frame(pixels))
         self.stats["frames_sent"] += 1
 
     def send_frame_nowait(self, pixels: bytes) -> None:
-        """Sendet ein Vollbild OHNE auf das ACK zu warten.
+        """Sends a full frame WITHOUT waiting for the ACK.
 
-        Nur fuer Messungen und Stresstests (siehe speedtest.py). Im Normalbetrieb
-        ist das die falsche Wahl: ohne Flusskontrolle ueberfaehrt man den
-        RX-Puffer des Nano, sobald FastLED in show() die Interrupts sperrt.
+        Only for measurements and stress tests (see speedtest.py). In normal
+        operation it's the wrong choice: without flow control you overrun the
+        Nano's receive buffer as soon as FastLED disables interrupts in show().
         """
         self._send(CMD_FRAME, self._check_frame(pixels))
         self.stats["frames_sent"] += 1
 
     def send_raw(self, start: int, pixels: bytes) -> None:
-        """Schreibt OHNE Pixel-Mapping direkt in die LED-Kette.
+        """Writes straight into the LED chain WITHOUT pixel mapping.
 
-        ``start`` ist der Kettenindex des ersten Pixels, ``pixels`` sind
-        3*n Byte RGB. Alle uebrigen LEDs werden schwarz.
+        ``start`` is the chain index of the first pixel, ``pixels`` are
+        3*n bytes of RGB. All other LEDs go black.
 
-        Nur zum Ausmessen der Panel-Verdrahtung gedacht (script/mapcheck.py):
-        weil hier nichts umsortiert wird, zeigt das Panel die Kette so, wie
-        sie physisch verloetet ist.
+        Only meant for measuring the panel wiring (script/mapcheck.py):
+        because nothing is reordered here, the panel shows the chain the way
+        it is physically soldered.
         """
         if len(pixels) % 3:
-            raise ValueError(f"pixels braucht ein Vielfaches von 3 Byte, hat {len(pixels)}")
+            raise ValueError(f"pixels needs a multiple of 3 bytes, has {len(pixels)}")
         if start < 0 or start > 0xFFFF:
-            raise ValueError(f"start {start} ausserhalb 0..65535")
+            raise ValueError(f"start {start} outside 0..65535")
         self._cmd_ack(CMD_RAW, struct.pack("<H", start) + bytes(pixels))
 
     def _check_frame(self, pixels: bytes) -> bytes:
         expected = self.geometry.frame_bytes if self.geometry else 192
         if len(pixels) != expected:
-            raise ValueError(f"Frame braucht {expected} B, bekam {len(pixels)}")
+            raise ValueError(f"Frame needs {expected} B, got {len(pixels)}")
         return bytes(pixels)
 
     def drain(self) -> tuple[int, int]:
-        """Holt alles ab, was gerade in der RX-Queue liegt, ohne zu blocken.
+        """Collects everything currently in the RX queue, without blocking.
 
-        Rueckgabe: (Anzahl ACK, Anzahl NACK). Fuer den Flood-Modus, in dem
-        Antworten nicht einzeln zugeordnet, sondern nur gezaehlt werden.
+        Returns: (number of ACKs, number of NACKs). For flood mode, where
+        responses are not matched up individually, only counted.
         """
         acks = nacks = 0
         while True:

@@ -14,25 +14,25 @@ env/
 .mypy_cache/
 .ruff_cache/
 
-# --- Tests / C-Harness ----------------------------------------------------
+# --- Tests / C harness ----------------------------------------------------
 tests/c_parser_test
 tests/*.o
 *.out
 
 # --- Arduino --------------------------------------------------------------
-# Build-Ausgaben der IDE bzw. arduino-cli
+# Build output of the IDE or arduino-cli
 build/
 *.hex
 *.elf
 *.bin
 *.map
 .arduino15/
-# Sketch-Metadaten der IDE 2.x
+# Sketch metadata of IDE 2.x
 FW/.theia/
 FW/.vscode/
 sketch.json
 
-# --- Editoren / IDEs ------------------------------------------------------
+# --- Editors / IDEs -------------------------------------------------------
 .vscode/
 .idea/
 *.swp
@@ -41,14 +41,14 @@ sketch.json
 .cache/
 compile_commands.json
 
-# --- Betriebssystem -------------------------------------------------------
+# --- Operating system -----------------------------------------------------
 Thumbs.db
 ehthumbs.db
 Desktop.ini
 .DS_Store
 $RECYCLE.BIN/
 
-# --- Lokales / Zufaelliges ------------------------------------------------
+# --- Local / miscellaneous ------------------------------------------------
 *.log
 *.local
 captures/

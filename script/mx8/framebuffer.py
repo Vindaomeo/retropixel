@@ -1,4 +1,4 @@
-"""Minimaler Framebuffer -- reines Python, keine Abhaengigkeiten."""
+"""Minimal framebuffer -- pure Python, no dependencies."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import colorsys
 
 
 class Framebuffer:
-    """Row-major RGB-Puffer. Zeile 0 = oben, Spalte 0 = links."""
+    """Row-major RGB buffer. Row 0 = top, column 0 = left."""
 
     __slots__ = ("width", "height", "buf")
 
@@ -15,7 +15,7 @@ class Framebuffer:
         self.height = height
         self.buf = bytearray(width * height * 3)
 
-    # -- Zugriff -----------------------------------------------------------
+    # -- Access ------------------------------------------------------------
     def set(self, x: int, y: int, r: int, g: int, b: int) -> None:
         if 0 <= x < self.width and 0 <= y < self.height:
             i = (y * self.width + x) * 3
@@ -31,7 +31,7 @@ class Framebuffer:
         r, g, b = colorsys.hsv_to_rgb(h % 1.0, s, v)
         self.set(x, y, int(r * 255), int(g * 255), int(b * 255))
 
-    # -- Ganzflaechig ------------------------------------------------------
+    # -- Whole area --------------------------------------------------------
     def fill(self, r: int = 0, g: int = 0, b: int = 0) -> None:
         self.buf[:] = bytes((r & 0xFF, g & 0xFF, b & 0xFF)) * (self.width * self.height)
 
@@ -39,7 +39,7 @@ class Framebuffer:
         self.buf[:] = bytes(len(self.buf))
 
     def fade(self, factor: float) -> None:
-        """Alle Pixel multiplikativ abdunkeln (0.0 = schwarz, 1.0 = unveraendert)."""
+        """Darken all pixels multiplicatively (0.0 = black, 1.0 = unchanged)."""
         f = max(0.0, min(1.0, factor))
         self.buf[:] = bytes(int(v * f) for v in self.buf)
 
@@ -48,7 +48,7 @@ class Framebuffer:
 
     # -- Debug -------------------------------------------------------------
     def to_ansi(self) -> str:
-        """Vorschau im Terminal -- praktisch ohne angeschlossene Hardware."""
+        """Preview in the terminal -- handy with no hardware attached."""
         out = []
         for y in range(self.height):
             row = []

@@ -1,15 +1,15 @@
-"""5x7-Bitmap-Font fuer die 8x8-Matrix.
+"""5x7 bitmap font for the 8x8 matrix.
 
-Die Glyphen stehen bewusst als ASCII-Art im Quelltext und nicht als Hex-Tabelle:
-so sieht man beim Lesen sofort, welcher Buchstabe da steht, und ein Tippfehler
-faellt beim Drueberschauen auf statt erst auf dem Panel.
+The glyphs are deliberately written as ASCII art in the source, not as a hex table:
+that way you see at a glance which letter it is, and a typo stands out while
+skimming the code instead of only on the panel.
 
     "A": (".###.",
           "#...#",
           ...)
 
-`#` = Pixel an, alles andere = aus. Jede Glyphe ist 5 breit und 7 hoch.
-Auf einem 8 Pixel hohen Display bleibt damit oben/unten je eine Zeile Luft.
+`#` = pixel on, anything else = off. Each glyph is 5 wide and 7 high.
+On an 8-pixel-high display that leaves one row of headroom at the top/bottom.
 """
 
 from __future__ import annotations
@@ -114,7 +114,7 @@ GLYPHS: dict[str, tuple[str, ...]] = {
     "|": ("..#..", "..#..", "..#..", "..#..", "..#..", "..#..", "..#.."),
     "}": ("##...", "..#..", "..#..", "...#.", "..#..", "..#..", "##..."),
     "~": (".....", ".....", ".#..#", "#.#.#", "#..#.", ".....", "....."),
-    # Umlaute und Eszett -- ohne die wird jeder deutsche Text haesslich
+    # Umlauts and eszett -- without them every German text looks ugly
     "Ä": ("#...#", ".###.", "#...#", "#####", "#...#", "#...#", "#...#"),
     "Ö": ("#...#", ".###.", "#...#", "#...#", "#...#", "#...#", ".###."),
     "Ü": ("#...#", ".....", "#...#", "#...#", "#...#", "#...#", ".###."),
@@ -130,15 +130,15 @@ FALLBACK = GLYPHS["?"]
 
 
 def glyph(ch: str) -> tuple[str, ...]:
-    """Bitmap einer Glyphe. Unbekannte Zeichen werden zu '?'."""
+    """Bitmap of a glyph. Unknown characters become '?'."""
     return GLYPHS.get(ch, FALLBACK)
 
 
 class TextBitmap:
-    """Ein gerenderter Textlauf als Spalten-Bitmaske.
+    """A rendered run of text as a column bitmask.
 
-    Intern eine Liste von Spalten, jede Spalte eine Liste von 7 bool. Damit ist
-    das horizontale Scrollen einfach ein Index-Offset statt einer Neuberechnung.
+    Internally a list of columns, each column a list of 7 bools. That makes
+    horizontal scrolling just an index offset instead of a recomputation.
     """
 
     __slots__ = ("cols", "height")
@@ -158,13 +158,13 @@ class TextBitmap:
         return len(self.cols)
 
     def column(self, x: int) -> list[bool]:
-        """Spalte x; ausserhalb des Textes eine leere Spalte."""
+        """Column x; an empty column outside the text."""
         if 0 <= x < len(self.cols):
             return self.cols[x]
         return [False] * self.height
 
     def to_ascii(self) -> str:
-        """Zum Nachschauen im Terminal."""
+        """For a quick look in the terminal."""
         return "\n".join(
             "".join("#" if self.cols[x][y] else "." for x in range(len(self.cols)))
             for y in range(self.height)
@@ -172,14 +172,14 @@ class TextBitmap:
 
 
 def validate_font() -> list[str]:
-    """Prueft die Glyphentabelle auf Formfehler. Leere Liste = alles gut."""
+    """Checks the glyph table for shape errors. Empty list = all good."""
     problems = []
     for ch, rows in GLYPHS.items():
         if len(rows) != GLYPH_H:
-            problems.append(f"{ch!r}: {len(rows)} Zeilen statt {GLYPH_H}")
+            problems.append(f"{ch!r}: {len(rows)} rows instead of {GLYPH_H}")
         for i, r in enumerate(rows):
             if len(r) != GLYPH_W:
-                problems.append(f"{ch!r} Zeile {i}: {len(r)} Zeichen statt {GLYPH_W}")
+                problems.append(f"{ch!r} row {i}: {len(r)} characters instead of {GLYPH_W}")
             if set(r) - {"#", "."}:
-                problems.append(f"{ch!r} Zeile {i}: ungueltige Zeichen {set(r) - {'#', '.'}!r}")
+                problems.append(f"{ch!r} row {i}: invalid characters {set(r) - {'#', '.'}!r}")
     return problems

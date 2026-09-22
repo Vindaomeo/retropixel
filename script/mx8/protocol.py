@@ -1,7 +1,7 @@
-"""MX8 Binaerprotokoll -- Framing, CRC und inkrementeller Parser.
+"""MX8 binary protocol -- framing, CRC and incremental parser.
 
-Spiegelbild von FW/mx8_protocol.h.
-Aenderungen immer in BEIDEN Dateien nachziehen.
+Mirror image of FW/mx8_protocol.h.
+Always apply changes to BOTH files.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ CMD_SET_BRIGHTNESS = 0x03
 CMD_CLEAR = 0x04
 CMD_HELLO = 0x05
 CMD_RELEASE = 0x06
-CMD_RAW = 0x07  # ohne Mapping direkt in die Kette (script/mapcheck.py)
+CMD_RAW = 0x07  # straight into the chain, no mapping (script/mapcheck.py)
 
 # Nano -> PC
 MSG_READY = 0x81
@@ -48,7 +48,7 @@ CMD_NAMES = {
     MSG_LOG: "LOG",
 }
 
-# NACK-Fehlercodes
+# NACK error codes
 ERR_CRC = 0x01
 ERR_LENGTH = 0x02
 ERR_UNKNOWN_CMD = 0x03
@@ -56,18 +56,18 @@ ERR_TOO_LONG = 0x04
 ERR_RX_TIMEOUT = 0x05
 
 ERR_NAMES = {
-    ERR_CRC: "CRC-Fehler",
-    ERR_LENGTH: "falsche Payload-Laenge",
-    ERR_UNKNOWN_CMD: "unbekanntes Kommando",
-    ERR_TOO_LONG: "Frame zu lang",
-    ERR_RX_TIMEOUT: "RX-Timeout / Resync",
+    ERR_CRC: "CRC error",
+    ERR_LENGTH: "wrong payload length",
+    ERR_UNKNOWN_CMD: "unknown command",
+    ERR_TOO_LONG: "frame too long",
+    ERR_RX_TIMEOUT: "RX timeout / resync",
 }
 
 COLOR_ORDERS = ["RGB", "RBG", "GRB", "GBR", "BRG", "BGR"]
 
 
 # ---------------------------------------------------------------------------
-# CRC-16/CCITT-FALSE : poly 0x1021, init 0xFFFF, kein Reflect, kein XorOut
+# CRC-16/CCITT-FALSE : poly 0x1021, init 0xFFFF, no reflect, no XorOut
 # ---------------------------------------------------------------------------
 def _build_table() -> list[int]:
     table = []
@@ -83,7 +83,7 @@ _CRC_TABLE = _build_table()
 
 
 def crc16(data: bytes, crc: int = 0xFFFF) -> int:
-    """CRC-16/CCITT-FALSE ueber ``data``, fortsetzbar ueber ``crc``."""
+    """CRC-16/CCITT-FALSE over ``data``, can be continued via ``crc``."""
     for b in data:
         crc = ((crc << 8) & 0xFFFF) ^ _CRC_TABLE[((crc >> 8) ^ b) & 0xFF]
     return crc
@@ -93,7 +93,7 @@ def crc16(data: bytes, crc: int = 0xFFFF) -> int:
 # Encode
 # ---------------------------------------------------------------------------
 def encode(cmd: int, payload: bytes = b"") -> bytes:
-    """Baut ein sendefertiges Frame."""
+    """Builds a ready-to-send frame."""
     if len(payload) > MAX_PAYLOAD:
         raise ValueError(f"Payload {len(payload)} B > MAX_PAYLOAD {MAX_PAYLOAD} B")
     body = struct.pack("<BH", cmd, len(payload)) + payload
@@ -101,7 +101,7 @@ def encode(cmd: int, payload: bytes = b"") -> bytes:
 
 
 # ---------------------------------------------------------------------------
-# Decode (inkrementell)
+# Decode (incremental)
 # ---------------------------------------------------------------------------
 class Message(NamedTuple):
     cmd: int
@@ -118,10 +118,10 @@ class ParseError(NamedTuple):
 
 
 class FrameParser:
-    """Byte-Stream rein, vollstaendige Messages raus.
+    """Byte stream in, complete messages out.
 
-    Toleriert Muell zwischen Frames: es wird byteweise auf das Start-Token
-    resynchronisiert. CRC-Fehler werden als ParseError gemeldet, nicht geworfen.
+    Tolerates garbage between frames: it resynchronizes byte by byte on the
+    start token. CRC errors are reported as ParseError, not raised.
     """
 
     def __init__(self) -> None:
@@ -134,7 +134,7 @@ class FrameParser:
         while True:
             start = self._buf.find(SYNC)
             if start < 0:
-                # Letztes Byte koennte der Anfang eines Tokens sein -> behalten.
+                # Last byte could be the start of a token -> keep it.
                 keep = 1 if self._buf[-1:] == SYNC[:1] else 0
                 if len(self._buf) > keep:
                     self.resyncs += 1
@@ -148,7 +148,7 @@ class FrameParser:
                 return
             cmd, length = struct.unpack_from("<BH", self._buf, 2)
             if length > MAX_PAYLOAD:
-                # Kann kein gueltiger Header sein -> hinter das Token springen.
+                # Can't be a valid header -> skip past the token.
                 del self._buf[:2]
                 self.resyncs += 1
                 continue
@@ -168,7 +168,7 @@ class FrameParser:
 
 
 # ---------------------------------------------------------------------------
-# READY-Geometrie
+# READY geometry
 # ---------------------------------------------------------------------------
 @dataclass(frozen=True)
 class Geometry:
@@ -184,7 +184,7 @@ class Geometry:
     @classmethod
     def parse(cls, payload: bytes) -> "Geometry":
         if len(payload) != 8:
-            raise ValueError(f"READY erwartet 8 B Payload, bekam {len(payload)}")
+            raise ValueError(f"READY expects 8 B payload, got {len(payload)}")
         return cls(*payload)
 
     @property
@@ -202,9 +202,9 @@ class Geometry:
         return "?"
 
     def __str__(self) -> str:
-        layout = "serpentine" if self.layout else "progressiv"
+        layout = "serpentine" if self.layout else "progressive"
         return (
             f"{self.width}x{self.height}x{self.bpp} ({self.order_name}, {layout}) "
             f"proto v{self.proto} fw {self.fw_major}.{self.fw_minor} "
-            f"-> {self.frame_bytes} B/Frame"
+            f"-> {self.frame_bytes} B/frame"
         )

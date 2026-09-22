@@ -1,48 +1,48 @@
-"""Pixel-Mapping (x,y) -> Index in der LED-Kette.
+"""Pixel mapping (x,y) -> index in the LED chain.
 
-Spiegelbild von FW/mx8_map.h. Aenderungen immer in BEIDEN Dateien nachziehen --
-tests/test_protocol.py vergleicht beide Implementierungen Pixel fuer Pixel.
+Mirror image of FW/mx8_map.h. Always apply changes to BOTH files --
+tests/test_protocol.py compares the two implementations pixel by pixel.
 
-Host-Koordinaten: Zeile 0 = oben, Spalte 0 = links, row-major.
+Host coordinates: row 0 = top, column 0 = left, row-major.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-# Ecke, in der das erste Pixel einer Kachel sitzt.
+# Corner in which the first pixel of a tile sits.
 ORIGIN_TOP_LEFT = 0
 ORIGIN_TOP_RIGHT = 1
 ORIGIN_BOTTOM_LEFT = 2
 ORIGIN_BOTTOM_RIGHT = 3
 
 ORIGIN_NAMES = {
-    ORIGIN_TOP_LEFT: "oben links",
-    ORIGIN_TOP_RIGHT: "oben rechts",
-    ORIGIN_BOTTOM_LEFT: "unten links",
-    ORIGIN_BOTTOM_RIGHT: "unten rechts",
+    ORIGIN_TOP_LEFT: "top left",
+    ORIGIN_TOP_RIGHT: "top right",
+    ORIGIN_BOTTOM_LEFT: "bottom left",
+    ORIGIN_BOTTOM_RIGHT: "bottom right",
 }
 
 
 @dataclass(frozen=True)
 class TileMap:
-    """Beschreibt, wie aus Kacheln eine Flaeche wird und wie die Kette laeuft.
+    """Describes how tiles form a display area and how the chain runs.
 
-    Ein einzelnes Panel ist der Sonderfall ``tiles_x = tiles_y = 1``.
+    A single panel is the special case ``tiles_x = tiles_y = 1``.
     """
 
     tile_w: int = 8
     tile_h: int = 8
     tiles_x: int = 1
     tiles_y: int = 1
-    vertical: bool = False            # Kette spaltenweise statt zeilenweise
-    serpentine: bool = False          # jede zweite Zeile/Spalte rueckwaerts
-    origin: int = ORIGIN_TOP_LEFT     # Ecke des ersten Pixels einer Kachel
-    flip_alt_rows: bool = False       # jede zweite Kachelzeile 180 Grad gedreht
-    tile_order_serpentine: bool = False   # Kacheln im Zickzack verkettet
-    strands: int = 1                  # Datenpins; teilt die Kette in Bloecke
+    vertical: bool = False            # chain runs by column instead of by row
+    serpentine: bool = False          # every other row/column reversed
+    origin: int = ORIGIN_TOP_LEFT     # corner of a tile's first pixel
+    flip_alt_rows: bool = False       # every other tile row rotated 180 degrees
+    tile_order_serpentine: bool = False   # tiles chained in serpentine (zigzag) order
+    strands: int = 1                  # data pins; splits the chain into blocks
 
-    # -- abgeleitet --------------------------------------------------------
+    # -- derived -----------------------------------------------------------
     @property
     def width(self) -> int:
         return self.tile_w * self.tiles_x
@@ -67,19 +67,19 @@ class TileMap:
     def leds_per_strand(self) -> int:
         return self.num_leds // self.strands
 
-    # -- das eigentliche Mapping ------------------------------------------
+    # -- the actual mapping -----------------------------------------------
     def index(self, x: int, y: int) -> int:
         if not (0 <= x < self.width and 0 <= y < self.height):
-            raise IndexError(f"({x},{y}) ausserhalb {self.width}x{self.height}")
+            raise IndexError(f"({x},{y}) outside {self.width}x{self.height}")
 
-        # 1) Kachel bestimmen
+        # 1) determine the tile
         tx, lx = divmod(x, self.tile_w)
         ty, ly = divmod(y, self.tile_h)
 
         tcol = (self.tiles_x - 1 - tx) if (self.tile_order_serpentine and ty & 1) else tx
         tile = ty * self.tiles_x + tcol
 
-        # 2) lokale Koordinate normalisieren
+        # 2) normalize the local coordinate
         if self.flip_alt_rows and (ty & 1):
             lx = self.tile_w - 1 - lx
             ly = self.tile_h - 1 - ly
@@ -89,7 +89,7 @@ class TileMap:
         if self.origin in (ORIGIN_BOTTOM_LEFT, ORIGIN_BOTTOM_RIGHT):
             ly = self.tile_h - 1 - ly
 
-        # 3) lokale Koordinate -> lokaler Kettenindex
+        # 3) local coordinate -> local chain index
         if self.vertical:
             if self.serpentine and (lx & 1):
                 ly = self.tile_h - 1 - ly
@@ -102,21 +102,21 @@ class TileMap:
         return tile * self.tile_leds + local
 
     def strand_of(self, chain_index: int) -> int:
-        """An welchem Datenpin haengt dieser Kettenindex?"""
+        """Which data pin drives this chain index?"""
         return chain_index // self.leds_per_strand
 
     def is_bijective(self) -> bool:
-        """Trifft jedes Pixel genau einen Kettenindex? Muss immer True sein."""
+        """Does every pixel hit exactly one chain index? Must always be True."""
         seen = {self.index(x, y) for y in range(self.height) for x in range(self.width)}
         return len(seen) == self.num_leds and max(seen) == self.num_leds - 1
 
     def to_defines(self) -> str:
-        """Der passende Block fuer FW/mx8_config.h."""
-        # Vorbelegt mit den Pins des aktuellen Aufbaus (Pico GP14 / GP17).
+        """The matching block for FW/mx8_config.h."""
+        # Pre-filled with the pins of the current build (Pico GP14 / GP17).
         default_pins = [14, 17, 18, 19]
         pins = "\n".join(
             f"#define {'LED_DATA_PIN' if s == 0 else f'LED_DATA_PIN_{s + 1}':<25}"
-            f"{default_pins[s]}   // Kachel {s}"
+            f"{default_pins[s]}   // tile {s}"
             for s in range(self.strands)
         )
         return (
@@ -136,25 +136,25 @@ class TileMap:
 
 
 # ---------------------------------------------------------------------------
-# Die Presets aus FW/mx8_config.h -- hier gespiegelt, damit Host-Werkzeuge
-# und Tests dieselben Zahlen sehen.
+# The presets from FW/mx8_config.h -- mirrored here so host tools
+# and tests see the same numbers.
 # ---------------------------------------------------------------------------
 PRESETS: dict[str, TileMap] = {
     "8x8": TileMap(tile_w=8, tile_h=8, tiles_x=1, tiles_y=1, strands=1),
-    # Zwei 8x32-Panels uebereinander. Die Kette laeuft SPALTENWEISE, acht Pixel
-    # je Spalte, im Zickzack -- am Panel gemessen. Ob ein Panel intern aus vier
-    # 8x8-Bloecken besteht, ist bei senkrechter Kette egal: Spalte c liegt in
-    # beiden Faellen auf Kettenindex 8c..8c+7.
+    # Two 8x32 panels stacked. The chain runs BY COLUMN, eight pixels per
+    # column, serpentine -- measured on the panel. Whether a panel is internally
+    # made of four 8x8 blocks doesn't matter with a vertical chain: column c
+    # lands on chain index 8c..8c+7 either way.
     "16x32": TileMap(
         tile_w=32, tile_h=8, tiles_x=1, tiles_y=2,
         vertical=True, serpentine=True, strands=2,
     ),
-    # Gegenentwuerfe, falls ein anderes Panel anders verdrahtet ist.
-    "16x32-rows": TileMap(          # zeilenweise, Zickzack
+    # Alternatives, in case another panel is wired differently.
+    "16x32-rows": TileMap(          # by row, serpentine
         tile_w=32, tile_h=8, tiles_x=1, tiles_y=2,
         vertical=False, serpentine=True, strands=2,
     ),
-    "16x32-blocks": TileMap(        # vier verkettete 8x8-Bloecke je Panel
+    "16x32-blocks": TileMap(        # four chained 8x8 blocks per panel
         tile_w=8, tile_h=8, tiles_x=4, tiles_y=2,
         vertical=False, serpentine=True, strands=2,
     ),

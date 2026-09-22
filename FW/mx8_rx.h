@@ -1,11 +1,11 @@
 // ===========================================================================
-//  mx8_rx.h  --  Empfangs-State-Machine, hardwarefrei
+//  mx8_rx.h  --  receive state machine, hardware-free
 //
-//  Bewusst ohne Arduino-Abhaengigkeiten: keine millis(), kein Serial. Die Zeit
-//  kommt als Parameter herein. Dadurch laesst sich exakt dieser Code auf dem
-//  PC kompilieren und gegen die Python-Implementierung gegentesten
-//  (tests/c_parser_test.c) -- die Firmware und der Test teilen sich also
-//  wirklich dieselbe Logik statt einer Kopie davon.
+//  Deliberately free of Arduino dependencies: no millis(), no Serial. The time
+//  comes in as a parameter. That way exactly this code can be compiled on the
+//  PC and tested against the Python implementation
+//  (tests/c_parser_test.c) -- so the firmware and the test really share
+//  the same logic instead of a copy of it.
 // ===========================================================================
 #pragma once
 #include "mx8_protocol.h"
@@ -33,7 +33,7 @@ typedef struct {
   uint16_t  crc_calc;
   uint16_t  crc_recv;
   uint32_t  start_ms;
-  uint8_t   drop;                        // Payload zu lang -> nur CRC mitrechnen
+  uint8_t   drop;                        // payload too long -> only keep the CRC going
   uint8_t   buf[MX_MAX_PAYLOAD];
   mx_msg_cb on_msg;
   mx_err_cb on_err;
@@ -54,7 +54,7 @@ static inline void mxrx_init(MxRx *r, mx_msg_cb on_msg, mx_err_cb on_err, void *
   mxrx_reset(r);
 }
 
-// Ein empfangenes Byte einspeisen. ``now_ms`` = aktuelle Millisekunden.
+// Feed in one received byte. ``now_ms`` = current milliseconds.
 static inline void mxrx_byte(MxRx *r, uint8_t b, uint32_t now_ms) {
   switch (r->state) {
 
@@ -63,7 +63,7 @@ static inline void mxrx_byte(MxRx *r, uint8_t b, uint32_t now_ms) {
       break;
 
     case MXRX_SYNC1:
-      // Ein zweites 0xA5 ist erlaubt -- es koennte der echte Start sein.
+      // A second 0xA5 is allowed -- it could be the real start.
       if      (b == MX_SYNC1) r->state = MXRX_CMD;
       else if (b == MX_SYNC0) r->state = MXRX_SYNC1;
       else                    r->state = MXRX_SYNC0;
@@ -114,7 +114,7 @@ static inline void mxrx_byte(MxRx *r, uint8_t b, uint32_t now_ms) {
   }
 }
 
-// Regelmaessig aufrufen: befreit den Parser aus einem halb empfangenen Frame.
+// Call regularly: frees the parser from a half-received frame.
 static inline void mxrx_tick(MxRx *r, uint32_t now_ms) {
   if (r->state != MXRX_SYNC0 && (now_ms - r->start_ms) > MX_RX_FRAME_TIMEOUT_MS) {
     if (r->on_err) r->on_err(0xFF, ERR_RX_TIMEOUT, r->ctx);
@@ -123,8 +123,8 @@ static inline void mxrx_tick(MxRx *r, uint32_t now_ms) {
 }
 
 // ---------------------------------------------------------------------------
-//  TX-Helfer: baut ein Frame in einen Puffer. Rueckgabe = Gesamtlaenge.
-//  ``out`` braucht mindestens MX_OVERHEAD_BYTES + len Bytes.
+//  TX helper: builds a frame into a buffer. Returns the total length.
+//  ``out`` needs at least MX_OVERHEAD_BYTES + len bytes.
 // ---------------------------------------------------------------------------
 static inline uint16_t mxtx_build(uint8_t *out, uint8_t cmd,
                                   const uint8_t *payload, uint16_t len) {

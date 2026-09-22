@@ -1,33 +1,33 @@
 #!/usr/bin/env python3
-"""pixelwalk -- jedes Pixel einzeln ansteuern, eines pro Sekunde.
+"""pixelwalk -- drive every pixel individually, one per second.
 
-Genau ein Pixel leuchtet, dann das naechste. Reihenfolge zeilenweise:
+Exactly one pixel is lit, then the next. Order is row by row:
 
     (0,0) (1,0) (2,0) ... (xmax,0)
     (0,1) (1,1) ...       (xmax,1)
-    ...                   (xmax,ymax)   -> und wieder von vorn
+    ...                   (xmax,ymax)   -> and back to the start
 
-Wozu das gut ist: es ist der einzige Test, der jede einzelne LED anfasst.
-Tote Pixel, kalte Loetstellen und Mapping-Fehler fallen damit auf, und weil zu
-jedem Schritt Koordinate UND Kettenindex mitgedruckt werden, sieht man sofort,
-ob das Bild dort erscheint, wo es soll.
+What it's good for: it is the only test that touches every single LED.
+Dead pixels, cold solder joints and mapping errors all show up, and because
+each step prints the coordinate AND the chain index, you see immediately
+whether the image appears where it should.
 
-    python pixelwalk.py -p COM4                 erster Lauf schnell, dann 1 Pixel/s
-    python pixelwalk.py --interval 0.1          auch danach schnell
-    python pixelwalk.py --first-interval 1      auch der erste Lauf im Sekundentakt
-    python pixelwalk.py --column                spaltenweise statt zeilenweise
-    python pixelwalk.py --trail                 bereits gepruefte Pixel bleiben schwach an
-    python pixelwalk.py --start 5,3             an dieser Stelle weitermachen
-    python pixelwalk.py --raw                   der LED-KETTE folgen statt dem Bild
-    python pixelwalk.py --preview               im Terminal, ohne Hardware
+    python pixelwalk.py -p COM4                 first pass fast, then 1 pixel/s
+    python pixelwalk.py --interval 0.1          fast afterwards too
+    python pixelwalk.py --first-interval 1      first pass at one per second too
+    python pixelwalk.py --column                column by column instead of row by row
+    python pixelwalk.py --trail                 already checked pixels stay dimly lit
+    python pixelwalk.py --start 5,3             resume at this position
+    python pixelwalk.py --raw                   follow the LED CHAIN instead of the image
+    python pixelwalk.py --preview               in the terminal, no hardware
 
-Der ERSTE Durchlauf laeuft schnell (--first-interval, Standard 0,05 s): fuer ein
-Video ist er damit in gut 25 s durch statt in 8,5 min. Ab dem zweiten Durchlauf
-gilt --interval, also der Sekundentakt zum genauen Hinschauen.
+The FIRST pass runs fast (--first-interval, default 0.05 s): for a video it is
+done in a good 25 s instead of 8.5 min. From the second pass on, --interval
+applies, i.e. one per second for a close look.
 
-``--raw`` ist der Gegentest zum Normalfall: statt (x,y) laeuft der Punkt den
-Kettenindex 0,1,2,... entlang. Springt er dabei kreuz und quer ueber das Panel,
-ist die Verdrahtung anders als konfiguriert -- dann weiter mit mapcheck.py.
+``--raw`` is the counter-test to the normal case: instead of (x,y) the dot
+follows chain index 0,1,2,... If it jumps all over the panel, the wiring
+differs from the configuration -- continue with mapcheck.py.
 """
 
 from __future__ import annotations
@@ -40,14 +40,14 @@ from typing import Optional
 from mx8 import Framebuffer, MatrixLink
 from mx8.mapping import PRESETS, TileMap
 
-# Weiss macht jeden Farbkanal sichtbar: faellt einer aus, wird der Punkt bunt
-# statt weiss. Ein einfarbiger Testpunkt wuerde genau das verstecken.
+# White makes every color channel visible: if one fails, the dot turns colored
+# instead of white. A single-color test dot would hide exactly that.
 COLOR = (255, 255, 255)
-TRAIL = (0, 26, 12)          # schwaches Gruen fuer bereits gepruefte Pixel
+TRAIL = (0, 26, 12)          # dim green for already checked pixels
 
 
 def walk_order(width: int, height: int, column_major: bool):
-    """Die Reihenfolge, in der die Pixel drankommen."""
+    """The order in which the pixels get their turn."""
     if column_major:
         for x in range(width):
             for y in range(height):
@@ -59,16 +59,16 @@ def walk_order(width: int, height: int, column_major: bool):
 
 
 def guess_tilemap(width: int, height: int, name: Optional[str] = None) -> Optional[TileMap]:
-    """Passendes Preset zur gemeldeten Geometrie.
+    """Matching preset for the reported geometry.
 
-    Wird nur fuer die Anzeige des Kettenindex und fuer ``--raw`` gebraucht --
-    das eigentliche Mapping macht die Firmware. Mehrere Presets koennen
-    dieselbe Groesse haben (16x32 mit und ohne Zickzack); dann gewinnt das
-    erste, oder man waehlt mit --preset aus.
+    Only needed for displaying the chain index and for ``--raw`` --
+    the actual mapping is done by the firmware. Several presets can have
+    the same size (16x32 with and without serpentine); then the first one
+    wins, or you pick one with --preset.
     """
     if name:
         if name not in PRESETS:
-            raise SystemExit(f"Preset unbekannt. Bekannt: {', '.join(PRESETS)}")
+            raise SystemExit(f"Unknown preset. Known: {', '.join(PRESETS)}")
         return PRESETS[name]
     for tm in PRESETS.values():
         if tm.width == width and tm.height == height:
@@ -77,58 +77,58 @@ def guess_tilemap(width: int, height: int, name: Optional[str] = None) -> Option
 
 
 def parse_start(text: str, width: int, height: int) -> tuple[int, int]:
-    """--start als Koordinate. Wo die in der Reihenfolge liegt, entscheidet
-    spaeter die Liste selbst -- sonst waere der Startpunkt bei --column oder
-    --raw ein anderer als angegeben."""
+    """--start as a coordinate. Where it falls in the order is decided
+    later by the list itself -- otherwise the start point with --column or
+    --raw would differ from the one given."""
     try:
         x, y = (int(v) for v in text.replace(" ", "").split(","))
     except ValueError:
-        raise SystemExit("--start braucht die Form X,Y -- z. B. --start 5,3")
+        raise SystemExit("--start needs the form X,Y -- e.g. --start 5,3")
     if not (0 <= x < width and 0 <= y < height):
-        raise SystemExit(f"--start {x},{y} liegt ausserhalb von {width}x{height}")
+        raise SystemExit(f"--start {x},{y} is outside {width}x{height}")
     return x, y
 
 
 def main(argv: Optional[list[str]] = None) -> int:
     ap = argparse.ArgumentParser(
-        description="Jedes Pixel einzeln ansteuern, eines pro Intervall.",
+        description="Drive every pixel individually, one per interval.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
-    ap.add_argument("-p", "--port", help="z. B. COM4 (sonst MX8_PORT / Autoerkennung)")
+    ap.add_argument("-p", "--port", help="e.g. COM4 (otherwise MX8_PORT / auto-detect)")
     ap.add_argument("-b", "--baud", type=int, default=None)
     ap.add_argument("--interval", type=float, default=1.0,
-                    help="Sekunden je Pixel ab dem zweiten Durchlauf (Standard 1,0)")
+                    help="seconds per pixel from the second pass on (default 1.0)")
     ap.add_argument("--first-interval", type=float, default=0.05,
-                    help="Sekunden je Pixel im ERSTEN Durchlauf (Standard 0,05 -- "
-                         "schnell genug fuer ein Video)")
+                    help="seconds per pixel in the FIRST pass (default 0.05 -- "
+                         "fast enough for a video)")
     ap.add_argument("--column", action="store_true",
-                    help="spaltenweise laufen statt zeilenweise")
+                    help="walk column by column instead of row by row")
     ap.add_argument("--trail", action="store_true",
-                    help="bereits gepruefte Pixel schwach anlassen")
+                    help="leave already checked pixels dimly lit")
     ap.add_argument("--raw", action="store_true",
-                    help="dem Kettenindex folgen statt der Bildkoordinate")
-    ap.add_argument("--start", metavar="X,Y", help="an dieser Koordinate beginnen")
-    ap.add_argument("--loops", type=int, default=0, help="Durchlaeufe, 0 = endlos")
+                    help="follow the chain index instead of the image coordinate")
+    ap.add_argument("--start", metavar="X,Y", help="start at this coordinate")
+    ap.add_argument("--loops", type=int, default=0, help="passes, 0 = endless")
     ap.add_argument("--brightness", type=int, default=None, help="0..255")
-    ap.add_argument("--preset", help=f"Preset fuer Kettenindex/--raw: {', '.join(PRESETS)}")
+    ap.add_argument("--preset", help=f"preset for chain index/--raw: {', '.join(PRESETS)}")
     ap.add_argument("--size", default="32x16",
-                    help="nur mit --preview: Flaeche BREITExHOEHE (Standard 32x16)")
-    ap.add_argument("--preview", action="store_true", help="Terminal statt Hardware")
+                    help="only with --preview: area WIDTHxHEIGHT (default 32x16)")
+    ap.add_argument("--preview", action="store_true", help="terminal instead of hardware")
     ap.add_argument("--release", action="store_true",
-                    help="am Ende RELEASE senden statt CLEAR")
+                    help="send RELEASE instead of CLEAR at the end")
     args = ap.parse_args(argv)
 
     if args.interval <= 0 or args.first_interval <= 0:
-        raise SystemExit("--interval und --first-interval muessen groesser als 0 sein")
+        raise SystemExit("--interval and --first-interval must be greater than 0")
 
-    # -- Verbindung / Geometrie -------------------------------------------
+    # -- Connection / geometry -------------------------------------------
     link = None
     if args.preview:
         try:
             width, height = (int(v) for v in args.size.lower().split("x"))
         except ValueError:
-            raise SystemExit("--size braucht die Form BREITExHOEHE, z. B. 32x16")
+            raise SystemExit("--size needs the form WIDTHxHEIGHT, e.g. 32x16")
     else:
         link = MatrixLink(args.port, args.baud, on_log=lambda s: print(f"  LOG  {s}"))
         link.open()
@@ -142,29 +142,29 @@ def main(argv: Optional[list[str]] = None) -> int:
     total = width * height
     tm = guess_tilemap(width, height, args.preset)
     if args.raw and tm is None:
-        print("  --raw braucht ein bekanntes Preset fuer diese Groesse "
-              f"({width}x{height}) -- vorhanden: {', '.join(PRESETS)}")
+        print("  --raw needs a known preset for this size "
+              f"({width}x{height}) -- available: {', '.join(PRESETS)}")
         if link:
             link.close()
         return 1
 
     start_px = parse_start(args.start, width, height) if args.start else None
 
-    order = "Kettenindex 0,1,2,..." if args.raw else \
-            ("spaltenweise" if args.column else "zeilenweise")
-    print(f"Flaeche   {width}x{height} = {total} Pixel")
-    print(f"Reihenfolge  {order}")
+    order = "chain index 0,1,2,..." if args.raw else \
+            ("column by column" if args.column else "row by row")
+    print(f"Area      {width}x{height} = {total} pixels")
+    print(f"Order     {order}")
     def dauer(sec: float) -> str:
         t = total * sec
         return f"{t:.0f} s" if t < 90 else f"{t / 60:.1f} min"
 
-    print(f"Takt      1. Durchlauf {args.first_interval:g} s je Pixel "
+    print(f"Timing    1st pass    {args.first_interval:g} s per pixel "
           f"= {dauer(args.first_interval)}")
-    print(f"          ab dem 2.   {args.interval:g} s je Pixel "
+    print(f"          from 2nd    {args.interval:g} s per pixel "
           f"= {dauer(args.interval)}")
     if tm is None and not args.raw:
-        print("Hinweis   kein Preset zu dieser Groesse -- Kettenindex wird nicht angezeigt")
-    print("          Strg-C beendet\n")
+        print("Note      no preset for this size -- chain index is not shown")
+    print("          Ctrl-C quits\n")
 
     fb = Framebuffer(width, height)
     seen: list[tuple[int, int]] = []
@@ -177,10 +177,10 @@ def main(argv: Optional[list[str]] = None) -> int:
         while args.loops == 0 or loops < args.loops:
             steps = list(walk_order(width, height, args.column))
             if args.raw:
-                # Nach Kettenindex sortieren: der Punkt folgt der Verdrahtung.
+                # Sort by chain index: the dot follows the wiring.
                 steps.sort(key=lambda p: tm.index(*p))
             start_at = steps.index(start_px) if start_px else 0
-            # Erster Durchlauf schnell (Video), danach zum Hinschauen langsam.
+            # First pass fast (video), then slow for a close look.
             interval = args.first_interval if loops == 0 else args.interval
 
             for i, (x, y) in enumerate(steps):
@@ -195,8 +195,8 @@ def main(argv: Optional[list[str]] = None) -> int:
 
                 idx = tm.index(x, y) if tm else None
                 label = (f"  {i + 1:>5}/{total}   x={x:>3} y={y:>3}"
-                         + (f"   Kette {idx:>5}" if idx is not None else "")
-                         + (f"   Strang {tm.strand_of(idx) + 1}" if tm and tm.strands > 1 else ""))
+                         + (f"   chain {idx:>5}" if idx is not None else "")
+                         + (f"   strand {tm.strand_of(idx) + 1}" if tm and tm.strands > 1 else ""))
 
                 if args.preview:
                     print(f"\033[H\033[2J{label}\n")
@@ -211,8 +211,8 @@ def main(argv: Optional[list[str]] = None) -> int:
 
             loops += 1
             seen.clear()
-            print(f"  -- Durchlauf {loops} fertig, {total} Pixel geprueft"
-                  + (f", weiter mit {args.interval:g} s je Pixel --"
+            print(f"  -- Pass {loops} done, {total} pixels checked"
+                  + (f", continuing at {args.interval:g} s per pixel --"
                      if loops == 1 and args.interval != args.first_interval else " --"))
 
         return 0
@@ -220,7 +220,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         print()
         return 130
     except (TimeoutError, OSError) as e:
-        print(f"\nVerbindung verloren: {e}")
+        print(f"\nConnection lost: {e}")
         return 1
     finally:
         if args.preview:

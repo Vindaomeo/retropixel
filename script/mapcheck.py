@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-"""mapcheck -- die tatsaechliche Verdrahtung eines Panels ausmessen.
+"""mapcheck -- measure how a panel is actually wired.
 
-Wie ein gekauftes Panel intern verloetet ist, steht selten im Datenblatt:
-zeilenweise oder spaltenweise, im Zickzack oder nicht, erstes Pixel oben links
-oder unten rechts. Raten kostet mehr Zeit als messen.
+How a store-bought panel is soldered internally is rarely in the datasheet:
+row by row or column by column, serpentine or not, first pixel top left
+or bottom right. Guessing costs more time than measuring.
 
-Dieses Skript nutzt CMD_RAW: damit landen die Farben OHNE Pixel-Mapping direkt
-in der LED-Kette. Was das Panel zeigt, ist also die physische Verdrahtung --
-unabhaengig davon, was gerade in FW/mx8_config.h steht.
+This script uses CMD_RAW: the colors go straight into the LED chain WITHOUT
+any pixel mapping. So what the panel shows is the physical wiring --
+regardless of what FW/mx8_config.h currently says.
 
-Ablauf:
-    python mapcheck.py                  vier Fragen -> fertiger Config-Block
-    python mapcheck.py --chase          Kette langsam ablaufen, nur anschauen
-    python mapcheck.py --verify 16x32   Testbild mit einem bekannten Preset
+Usage:
+    python mapcheck.py                  four questions -> finished config block
+    python mapcheck.py --chase          walk slowly along the chain, just watch
+    python mapcheck.py --verify 16x32   test image using a known preset
 
-Am Ende steht ein Block, den man 1:1 nach FW/mx8_config.h kopiert. Vorher wird
-das Ergebnis noch mit einem Testbild geprueft -- ebenfalls ueber CMD_RAW, das
-Mapping rechnet dabei der PC. Erst wenn das Bild stimmt, lohnt das Flashen.
+At the end you get a block to copy 1:1 into FW/mx8_config.h. Before that, the
+result is checked with a test image -- also via CMD_RAW, with the PC doing the
+mapping. Only once the image is right is it worth flashing.
 """
 
 from __future__ import annotations
@@ -45,10 +45,10 @@ BLUE = (60, 120, 255)
 
 
 # ---------------------------------------------------------------------------
-# Ein-/Ausgabe
+# Input / output
 # ---------------------------------------------------------------------------
 def ask(question: str, options: list[tuple[str, object]]) -> object:
-    """Eine Frage mit nummerierten Antworten. Gibt den Wert der Antwort zurueck."""
+    """A question with numbered answers. Returns the value of the chosen answer."""
     print()
     print(question)
     for i, (label, _) in enumerate(options, 1):
@@ -57,7 +57,7 @@ def ask(question: str, options: list[tuple[str, object]]) -> object:
         raw = input("  > ").strip()
         if raw.isdigit() and 1 <= int(raw) <= len(options):
             return options[int(raw) - 1][1]
-        print(f"  Bitte 1 bis {len(options)} eingeben.")
+        print(f"  Please enter 1 to {len(options)}.")
 
 
 def rgb_bytes(*colors: tuple[int, int, int]) -> bytes:
@@ -65,32 +65,32 @@ def rgb_bytes(*colors: tuple[int, int, int]) -> bytes:
 
 
 # ---------------------------------------------------------------------------
-# Testbild
+# Test image
 # ---------------------------------------------------------------------------
 def test_image(tm: TileMap) -> list[list[tuple[int, int, int]]]:
-    """Ein Bild, dem man jede Verdrehung sofort ansieht.
+    """An image that gives away any twist at a glance.
 
-    - gruener Rahmen um die Gesamtflaeche  -> ist die Flaeche vollstaendig?
-    - rote Ecke oben links, kurzer Arm nach rechts, langer Arm nach unten
-      -> verraet jede Drehung, Spiegelung UND Achsvertauschung
-    - je Kachel ihre Nummer als Ziffer  -> sitzen die Panels richtig herum?
+    - green border around the whole area  -> is the area complete?
+    - red corner top left, short arm to the right, long arm downwards
+      -> reveals every rotation, mirroring AND axis swap
+    - each tile shows its number as a digit  -> are the panels the right way up?
     """
     w, h = tm.width, tm.height
     img = [[(0, 0, 0) for _ in range(w)] for _ in range(h)]
 
-    # Rahmen
+    # Border
     for x in range(w):
         img[0][x] = img[h - 1][x] = (0, 40, 0)
     for y in range(h):
         img[y][0] = img[y][w - 1] = (0, 40, 0)
 
-    # Kachelnummern -- nur sinnvoll, wenn es mehr als eine Kachel gibt.
+    # Tile numbers -- only meaningful if there is more than one tile.
     if tm.num_tiles > 1:
         for ty in range(tm.tiles_y):
             for tx in range(tm.tiles_x):
                 n = ty * tm.tiles_x + tx
                 rows = glyph(str(n)) if n < 10 else glyph("?")
-                # mittig in der Kachel, aber nie im Rahmen
+                # centered in the tile, but never on the border
                 ox = min(max(tx * tm.tile_w + (tm.tile_w - GLYPH_W) // 2, 1),
                          max(1, w - 1 - GLYPH_W))
                 oy = min(max(ty * tm.tile_h + (tm.tile_h - GLYPH_H) // 2, 1),
@@ -103,8 +103,8 @@ def test_image(tm: TileMap) -> list[list[tuple[int, int, int]]]:
                         if 0 <= x < w and 0 <= y < h:
                             img[y][x] = (120, 120, 120)
 
-    # Asymmetrische Ecke: kurzer Arm nach rechts, langer nach unten.
-    # Nur so faellt auch eine vertauschte x/y-Achse auf.
+    # Asymmetric corner: short arm to the right, long arm downwards.
+    # Only this way does a swapped x/y axis show up too.
     for x in range(min(3, w)):
         img[0][x] = RED
     for y in range(min(5, h)):
@@ -113,10 +113,10 @@ def test_image(tm: TileMap) -> list[list[tuple[int, int, int]]]:
 
 
 def show_image(link: MatrixLink, tm: TileMap, img) -> None:
-    """Bild ueber CMD_RAW anzeigen -- das Mapping rechnet hier der PC.
+    """Show an image via CMD_RAW -- here the PC does the mapping.
 
-    Damit laesst sich eine Konfiguration pruefen, ohne die Firmware neu zu
-    flashen: stimmt das Bild, stimmt der Config-Block.
+    This lets you check a configuration without reflashing the firmware:
+    if the image is right, the config block is right.
     """
     chain = [(0, 0, 0)] * tm.num_leds
     for y in range(tm.height):
@@ -133,93 +133,93 @@ def ansi_preview(img) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Der Assistent
+# The wizard
 # ---------------------------------------------------------------------------
 def wizard(link: MatrixLink, tile_w: int, tile_h: int,
            tiles_x: int, tiles_y: int, strands: int) -> TileMap:
     tile_leds = tile_w * tile_h
-    print(f"\nAngenommen: {tiles_x}x{tiles_y} Kacheln zu je {tile_w}x{tile_h} Pixel "
-          f"= {tile_w * tiles_x}x{tile_h * tiles_y}, {strands} Datenpin(s).")
-    print("Stimmt das nicht, mit --tile / --tiles / --strands korrigieren.")
-    print("\nSchau auf das Panel, so wie es spaeter haengen soll.")
+    print(f"\nAssuming: {tiles_x}x{tiles_y} tiles of {tile_w}x{tile_h} pixels each "
+          f"= {tile_w * tiles_x}x{tile_h * tiles_y}, {strands} data pin(s).")
+    print("If that is wrong, correct it with --tile / --tiles / --strands.")
+    print("\nLook at the panel the way it will be mounted later.")
 
-    # -- 1) Wo sitzt Kettenindex 0? -----------------------------------------
+    # -- 1) Where is chain index 0? ------------------------------------------
     link.send_raw(0, rgb_bytes(WHITE))
     origin = ask(
-        "Genau ein Pixel leuchtet weiss. In welcher Ecke der ERSTEN Kachel?",
+        "Exactly one pixel is lit white. Which corner of the FIRST tile is it in?",
         [
-            ("oben links", ORIGIN_TOP_LEFT),
-            ("oben rechts", ORIGIN_TOP_RIGHT),
-            ("unten links", ORIGIN_BOTTOM_LEFT),
-            ("unten rechts", ORIGIN_BOTTOM_RIGHT),
+            ("top left", ORIGIN_TOP_LEFT),
+            ("top right", ORIGIN_TOP_RIGHT),
+            ("bottom left", ORIGIN_BOTTOM_LEFT),
+            ("bottom right", ORIGIN_BOTTOM_RIGHT),
         ],
     )
 
-    # -- 2) Laeuft die Kette in Zeilen oder in Spalten? ----------------------
+    # -- 2) Does the chain run in rows or in columns? ------------------------
     run = min(tile_w, tile_h, 4)
     link.send_raw(0, rgb_bytes(*[RED] * run))
     vertical = ask(
-        f"Jetzt leuchten {run} rote Pixel. Wie liegen sie?",
-        [("waagrecht nebeneinander", False), ("senkrecht untereinander", True)],
+        f"Now {run} red pixels are lit. How are they arranged?",
+        [("horizontally, side by side", False), ("vertically, one above the other", True)],
     )
 
-    # -- 3) Zickzack? --------------------------------------------------------
-    # Erster Durchlauf rot, zweiter gruen. Wo Gruen anfaengt, verraet alles.
-    # Bewusst ohne "oben/unten": das haengt schon von Frage 1 ab.
+    # -- 3) Serpentine? ------------------------------------------------------
+    # First pass red, second green. Where green starts gives everything away.
+    # Deliberately without "top/bottom": that already depends on question 1.
     run_len = tile_h if vertical else tile_w
     link.send_raw(0, rgb_bytes(*([RED] * run_len + [GREEN] * run_len)))
     serpentine = ask(
-        "Eine rote und eine gruene Reihe liegen nebeneinander.\n"
-        "Wo beginnt Gruen?",
+        "A red and a green line lie next to each other.\n"
+        "Where does green start?",
         [
-            ("direkt neben dem LETZTEN roten Pixel (Zickzack)", True),
-            ("direkt neben dem ERSTEN roten Pixel (jede Reihe gleiche Richtung)", False),
+            ("right next to the LAST red pixel (serpentine)", True),
+            ("right next to the FIRST red pixel (every line same direction)", False),
         ],
     )
 
-    # -- 4) Wie sitzen die weiteren Kacheln? ---------------------------------
+    # -- 4) How are the other tiles arranged? --------------------------------
     flip_alt_rows = False
     tile_order_serpentine = False
 
     if tiles_x * tiles_y > 1:
-        # Weiss = Kettenindex 0, Blau = erstes Pixel der zweiten Kachel.
-        # Beides in EINEM RAW-Frame, denn RAW loescht immer den Rest.
+        # White = chain index 0, blue = first pixel of the second tile.
+        # Both in ONE RAW frame, because RAW always clears the rest.
         span = [(0, 0, 0)] * (tile_leds + 1)
         span[0] = WHITE
         span[tile_leds] = BLUE
         link.send_raw(0, rgb_bytes(*span))
 
         where = ask(
-            "Zusaetzlich leuchtet ein blaues Pixel -- das erste Pixel der\n"
-            "ZWEITEN Kachel. Wo sitzt es?",
+            "Additionally, a blue pixel is lit -- the first pixel of the\n"
+            "SECOND tile. Where is it?",
             [
-                ("in einer anderen Kachel als das weisse", "other"),
-                ("in derselben Kachel wie das weisse", "wrong"),
+                ("in a different tile than the white one", "other"),
+                ("in the same tile as the white one", "wrong"),
             ],
         )
         if where == "wrong":
-            print("\n  Dann haengen beide Kacheln am selben Datenpin, oder --tile")
-            print("  stimmt nicht. Verkabelung und Kachelgroesse pruefen,")
-            print("  dann nochmal starten.")
+            print("\n  Then both tiles hang off the same data pin, or --tile")
+            print("  is wrong. Check the wiring and the tile size,")
+            print("  then start again.")
             sys.exit(1)
 
         if tiles_y > 1:
             flip_alt_rows = bool(ask(
-                "Vergleiche die Ecke: sitzt das blaue Pixel in SEINER Kachel\n"
-                "in derselben Ecke wie das weisse in seiner?",
+                "Compare the corners: is the blue pixel in the same corner of ITS\n"
+                "tile as the white one in its own?",
                 [
-                    ("ja, dieselbe Ecke", False),
-                    ("nein, diagonal gegenueber (Kachel ist 180 Grad gedreht)", True),
+                    ("yes, the same corner", False),
+                    ("no, diagonally opposite (tile is rotated 180 degrees)", True),
                 ],
             ))
 
         if tiles_x > 1:
             tile_order_serpentine = bool(ask(
-                "Und die Verkettung der Kacheln: faengt jede Kachelzeile wieder\n"
-                "links an, oder laeuft sie im Zickzack weiter?",
+                "And the chaining of the tiles: does each tile row start again\n"
+                "on the left, or does it continue in serpentine fashion?",
                 [
-                    ("jede Kachelzeile beginnt wieder links", False),
-                    ("Zickzack -- die naechste Zeile laeuft rueckwaerts", True),
+                    ("each tile row starts again on the left", False),
+                    ("serpentine -- the next row runs backwards", True),
                 ],
             ))
 
@@ -233,11 +233,11 @@ def wizard(link: MatrixLink, tile_w: int, tile_h: int,
 
 
 def chase(link: MatrixLink, num_leds: int, delay: float) -> None:
-    print(f"Laeuft die Kette ab, {num_leds} LEDs, {delay:g} s pro Pixel. Strg-C beendet.")
+    print(f"Walking the chain, {num_leds} LEDs, {delay:g} s per pixel. Ctrl-C quits.")
     i = 0
     while True:
         link.send_raw(i, rgb_bytes(WHITE))
-        print(f"\r  Kettenindex {i:>5}", end="", flush=True)
+        print(f"\r  chain index {i:>5}", end="", flush=True)
         time.sleep(delay)
         i = (i + 1) % num_leds
 
@@ -248,29 +248,29 @@ def parse_pair(text: str, what: str) -> tuple[int, int]:
         a, b = text.lower().split("x")
         return int(a), int(b)
     except ValueError:
-        raise SystemExit(f"--{what} braucht die Form BREITExHOEHE, z. B. 32x8")
+        raise SystemExit(f"--{what} needs the form WIDTHxHEIGHT, e.g. 32x8")
 
 
 def main(argv: Optional[list[str]] = None) -> int:
     ap = argparse.ArgumentParser(
-        description="Panel-Verdrahtung ausmessen und Config-Block erzeugen.",
+        description="Measure the panel wiring and generate a config block.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
-    ap.add_argument("-p", "--port", help="z. B. COM4 (sonst MX8_PORT / Autoerkennung)")
+    ap.add_argument("-p", "--port", help="e.g. COM4 (otherwise MX8_PORT / auto-detect)")
     ap.add_argument("-b", "--baud", type=int, default=None)
-    ap.add_argument("--tile", default="32x8", help="Groesse EINER Kachel (Standard 32x8)")
-    ap.add_argument("--tiles", default="1x2", help="Kacheln nebeneinander x untereinander")
-    ap.add_argument("--strands", type=int, default=2, help="Anzahl Datenpins")
+    ap.add_argument("--tile", default="32x8", help="size of ONE tile (default 32x8)")
+    ap.add_argument("--tiles", default="1x2", help="tiles side by side x stacked")
+    ap.add_argument("--strands", type=int, default=2, help="number of data pins")
     ap.add_argument("--brightness", type=int, default=24,
-                    help="Helligkeit zum Ausmessen (Standard 24 -- reicht und blendet nicht)")
+                    help="brightness for measuring (default 24 -- enough, and doesn't dazzle)")
     ap.add_argument("--chase", action="store_true",
-                    help="nur die Kette ablaufen lassen, keine Fragen")
-    ap.add_argument("--delay", type=float, default=0.25, help="Sekunden pro Pixel bei --chase")
+                    help="just walk the chain, no questions")
+    ap.add_argument("--delay", type=float, default=0.25, help="seconds per pixel with --chase")
     ap.add_argument("--verify", metavar="PRESET",
-                    help=f"nur Testbild mit einem Preset: {', '.join(PRESETS)}")
+                    help=f"only show the test image for a preset: {', '.join(PRESETS)}")
     ap.add_argument("--release", action="store_true",
-                    help="am Ende RELEASE senden (Panel zeigt wieder sein Testpattern)")
+                    help="send RELEASE at the end (panel shows its test pattern again)")
     args = ap.parse_args(argv)
 
     tile_w, tile_h = parse_pair(args.tile, "tile")
@@ -280,7 +280,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     link.open()
     geo = link.wait_ready(timeout=8.0)
     print(f"Port     {link.port} @ {link.baud} Baud")
-    print(f"READY    {geo}   (das ist die AKTUELL geflashte Konfiguration)")
+    print(f"READY    {geo}   (this is the CURRENTLY flashed configuration)")
     link.set_brightness(args.brightness)
 
     try:
@@ -290,30 +290,30 @@ def main(argv: Optional[list[str]] = None) -> int:
 
         if args.verify:
             if args.verify not in PRESETS:
-                raise SystemExit(f"Preset unbekannt. Bekannt: {', '.join(PRESETS)}")
+                raise SystemExit(f"Unknown preset. Known: {', '.join(PRESETS)}")
             tm = PRESETS[args.verify]
         else:
             tm = wizard(link, tile_w, tile_h, tiles_x, tiles_y, args.strands)
 
         if not tm.is_bijective():
-            print("\nFEHLER: Das ergibt kein gueltiges Mapping -- bitte nochmal messen.")
+            print("\nERROR: That does not give a valid mapping -- please measure again.")
             return 1
 
         img = test_image(tm)
         show_image(link, tm, img)
 
         print("\n" + "=" * 68)
-        print("So sollte das Panel jetzt aussehen:")
+        print("This is what the panel should look like now:")
         print("=" * 68)
         print(ansi_preview(img))
         print("=" * 68)
-        print("Rote Ecke oben links (kurzer Arm nach rechts, langer nach unten),")
-        print("gruener Rahmen aussen herum, je Kachel ihre Nummer -- aufrecht")
-        print("und nicht gespiegelt.\n")
-        print("Passt das Bild, diesen Block nach FW/mx8_config.h uebernehmen:\n")
+        print("Red corner top left (short arm to the right, long arm downwards),")
+        print("green border all around, each tile showing its number -- upright")
+        print("and not mirrored.\n")
+        print("If the image is right, copy this block into FW/mx8_config.h:\n")
         print(tm.to_defines())
-        print("Passt es nicht, das Skript nochmal starten und genauer hinschauen.")
-        input("\n[Enter] zum Beenden ")
+        print("If it isn't, run the script again and look more closely.")
+        input("\n[Enter] to quit ")
         return 0
     except KeyboardInterrupt:
         print()

@@ -1,5 +1,5 @@
-# Pflicht: serielle Verbindung zum Nano Every
+# Required: serial connection to the Nano Every
 pyserial>=3.5
 
-# Optional: nur fuer "mx8_cli.py image" (PNG/JPG/GIF aufs Panel)
+# Optional: only for "mx8_cli.py image" (PNG/JPG/GIF onto the panel)
 # pillow>=10.0

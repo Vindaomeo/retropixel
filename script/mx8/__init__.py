@@ -1,4 +1,4 @@
-"""MX8 -- Host-Bibliothek fuer die 8x8-RGB-Matrix am Arduino Nano Every."""
+"""MX8 -- host library for the 8x8 RGB matrix on the Arduino Nano Every."""
 
 from .framebuffer import Framebuffer
 from .link import (

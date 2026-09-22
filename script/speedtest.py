@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
-"""Wie schnell wird das Display wirklich?
+"""How fast does the display really get?
 
-    python speedtest.py                    # Latenz + Durchsatz messen
-    python speedtest.py --seconds 20       # laenger messen
-    python speedtest.py --flood            # zusaetzlich der Stresstest ohne ACK
-    python speedtest.py --preview          # nur die Rechnung, ohne Hardware
+    python speedtest.py                    # measure latency + throughput
+    python speedtest.py --seconds 20       # measure for longer
+    python speedtest.py --flood            # additionally the stress test without ACK
+    python speedtest.py --preview          # just the math, no hardware
 
-Gemessen wird in drei Stufen:
+Measurement runs in three stages:
 
-  1. LATENZ     PING/ACK hin und zurueck. Zeigt die reine Reaktionszeit der
-                Strecke PC -> USB-CDC -> Nano -> zurueck, ohne Bilddaten.
-  2. DURCHSATZ  Vollbilder so schnell wie moeglich, jeweils mit ACK-Quittung.
-                Das ist die Zahl, die im Normalbetrieb zaehlt.
-  3. FLOOD      (optional) Vollbilder ohne auf ACK zu warten. Zeigt, was
-                passiert, wenn man die Flusskontrolle weglaesst -- erwartbar
-                gehen Frames verloren, sobald FastLED in show() die Interrupts
-                sperrt. Nur zur Demonstration, nicht zum Nachmachen.
+  1. LATENCY    PING/ACK round trip. Shows the pure response time of the
+                path PC -> USB-CDC -> Nano -> back, without any image data.
+  2. THROUGHPUT Full frames as fast as possible, each acknowledged with an ACK.
+                This is the number that matters in normal operation.
+  3. FLOOD      (optional) Full frames without waiting for the ACK. Shows what
+                happens when you leave out flow control -- predictably,
+                frames get lost as soon as FastLED disables interrupts in
+                show(). For demonstration only, don't try this at home.
 
-Alle Messwerte werden gegen das theoretische Baudraten-Limit gestellt, damit
-sichtbar wird, ob die Leitung oder der Overhead bremst.
+All measurements are set against the theoretical baud-rate limit, so you can
+see whether the line or the overhead is holding things back.
 """
 
 from __future__ import annotations
@@ -33,43 +33,109 @@ from mx8 import Framebuffer, MatrixLink
 from mx8.link import LinkError
 from mx8.protocol import OVERHEAD_BYTES
 
-BITS_PER_BYTE = 10  # 8N1: 1 Start + 8 Daten + 1 Stopp
+BITS_PER_BYTE = 10  # 8N1: 1 start + 8 data + 1 stop
 ACK_FRAME_BYTES = OVERHEAD_BYTES + 1
 
-# WS2812B: 800 kHz Einzeldraht, 1,25 us je Bit, 24 Bit je LED, danach eine
-# Reset-Pause. Das ist ein FESTES Zeitbudget pro Bild, unabhaengig von allem
-# anderen -- und ab ein paar hundert LEDs der eigentliche Flaschenhals.
+# WS2812B: 800 kHz single wire, 1.25 us per bit, 24 bits per LED, followed by a
+# reset pause. That is a FIXED time budget per frame, independent of everything
+# else -- and beyond a few hundred LEDs it is the actual bottleneck.
 WS2812_BIT_S = 1.25e-6
 WS2812_RESET_S = 300e-6
 WS2812_BITS_PER_LED = 24
 
 
 def led_refresh_s(num_leds: int, strands: int = 1) -> float:
-    """Dauer eines FastLED-show() fuer ``num_leds`` LEDs.
+    """Duration of one FastLED show() for ``num_leds`` LEDs.
 
-    ``strands`` = Anzahl parallel angesteuerter Straenge. FastLED kann mehrere
-    Pins gleichzeitig takten, das teilt die Zeit entsprechend auf.
+    ``strands`` = number of strands driven in parallel. FastLED can clock out
+    several pins at the same time, which divides the time accordingly.
     """
     per_strand = math.ceil(num_leds / max(1, strands))
     return per_strand * WS2812_BITS_PER_LED * WS2812_BIT_S + WS2812_RESET_S
 
 
 # ---------------------------------------------------------------------------
+#  Network transport (Wi-Fi instead of USB)
+# ---------------------------------------------------------------------------
+#  What an MX8 frame costs when it arrives over Wi-Fi rather than USB-CDC.
+#  Three cost items, and only one of them is really expensive:
+#
+#    1. Bytes    -- headers for IP/TCP or UDP, LLC/SNAP and 802.11. Fixed per
+#                   packet, barely matters for large frames.
+#    2. Airtime  -- a fixed time budget per packet (backoff, preamble, ACK),
+#                   independent of the packet size.
+#    3. Latency  -- the round-trip time. ONLY relevant if the host waits for
+#                   an ACK on every frame. That is exactly what breaks things.
+MTU = 1500
+HDR_IP, HDR_TCP, HDR_UDP = 20, 20, 8
+HDR_LLC_SNAP, HDR_80211, FCS = 8, 24, 4
+
+# Fixed time budget per 802.11 packet: DIFS + mean backoff + preamble
+# + SIFS + ACK. Applies regardless of how large the packet is.
+WIFI_FIXED_AIRTIME_S = (28 + 67 + 20 + 16 + 30) * 1e-6
+
+#: Measured on the Pico W with the C SDK (iperf2). The Pico 2 W uses the same
+#: CYW43439 on the same PIO-SPI; read the number as an order of magnitude,
+#: not as a guarantee.
+WIFI_MEASURED_BPS = 8.15e6
+
+
+def net_frame_bytes(payload: int, proto: str = "udp") -> tuple[int, int]:
+    """(number of packets, bytes on the air interface) for one MX8 frame."""
+    if proto == "tcp":
+        head = HDR_IP + HDR_TCP
+    elif proto == "udp":
+        head = HDR_IP + HDR_UDP
+    else:
+        raise ValueError(f"proto {proto!r} -- 'tcp' or 'udp'")
+    pkts = max(1, math.ceil(payload / (MTU - head)))
+    return pkts, payload + pkts * (head + HDR_LLC_SNAP + HDR_80211 + FCS)
+
+
+def theory_net(frame_bytes: int, link_bps: float = WIFI_MEASURED_BPS,
+               proto: str = "udp", rtt_s: float = 0.0, acked: bool = False,
+               bpp: int = 3, strands: int = 1) -> dict[str, float]:
+    """Upper bound over Wi-Fi.
+
+    ``acked=True`` models today's behavior: the host waits for the ACK on
+    every frame, so the round-trip time goes fully into the frame time.
+    ``acked=False`` is fire-and-forget with a sequence number -- then latency
+    drops out entirely and only throughput counts.
+    """
+    mx8 = OVERHEAD_BYTES + frame_bytes
+    pkts, wire = net_frame_bytes(mx8, proto)
+    tx = wire * 8 / link_bps
+    air = pkts * WIFI_FIXED_AIRTIME_S
+    led = led_refresh_s(frame_bytes // bpp, strands)
+    net = max(tx, air) + (rtt_s if acked else 0.0)
+    # RP2040/RP2350: PIO+DMA clocks out in the background, so receiving and
+    # output overlap -- same as with USB.
+    total = max(net, led)
+    return {
+        "mx8_bytes": mx8, "packets": pkts, "wire_bytes": wire,
+        "overhead_pct": wire / mx8 - 1.0,
+        "tx_s": tx, "airtime_s": air, "rtt_s": rtt_s if acked else 0.0,
+        "net_s": net, "led_s": led, "total_s": total,
+        "fps_net": 1.0 / net, "fps_led": 1.0 / led, "fps_total": 1.0 / total,
+    }
+
+
+# ---------------------------------------------------------------------------
 def theory(baud: int, frame_bytes: int, bpp: int = 3,
            strands: int = 1, overlap: bool = False) -> dict[str, float]:
-    """Die zwei harten Grenzen: serielle Strecke und LED-Protokoll.
+    """The two hard limits: serial link and LED protocol.
 
-    Ob sie sich addieren, entscheidet die Plattform:
+    Whether they add up is decided by the platform:
 
-    ``overlap=False`` (AVR, Standardfall): FastLED taktet die LEDs per Bitbang
-    aus und sperrt dabei die Interrupts. Der Controller kann in dieser Zeit
-    nichts empfangen -- die Zeiten addieren sich.
+    ``overlap=False`` (AVR, the default case): FastLED bit-bangs the LEDs out
+    and disables interrupts while doing so. The controller cannot receive
+    anything during that time -- the times add up.
 
-    ``overlap=True`` (RP2040): der PIO-Treiber schiebt die Bits per DMA raus.
-    showPixels() wartet nur auf die VORHERIGE Uebertragung und kehrt dann
-    zurueck, Interrupts bleiben an (FASTLED_ALLOW_INTERRUPTS ist dort auf 1).
-    Empfangen und Austakten laufen also gleichzeitig -- es zaehlt der laengere
-    der beiden Wege, nicht die Summe.
+    ``overlap=True`` (RP2040): the PIO driver pushes the bits out via DMA.
+    showPixels() only waits for the PREVIOUS transfer and then returns,
+    interrupts stay enabled (FASTLED_ALLOW_INTERRUPTS is 1 there).
+    So receiving and clocking out run at the same time -- what counts is the
+    longer of the two paths, not the sum.
     """
     tx = (OVERHEAD_BYTES + frame_bytes) * BITS_PER_BYTE / baud
     rx = ACK_FRAME_BYTES * BITS_PER_BYTE / baud
@@ -84,10 +150,10 @@ def theory(baud: int, frame_bytes: int, bpp: int = 3,
         "led_s": led,
         "total_s": total,
         "overlap": overlap,
-        "fps_stream": 1.0 / tx,           # ohne ACK-Wartezeit
-        "fps_acked": 1.0 / (tx + rx),     # nur serielle Strecke
-        "fps_led": 1.0 / led,             # nur LED-Protokoll
-        "fps_total": 1.0 / total,         # beides, so wie es wirklich laeuft
+        "fps_stream": 1.0 / tx,           # without waiting for the ACK
+        "fps_acked": 1.0 / (tx + rx),     # serial link only
+        "fps_led": 1.0 / led,             # LED protocol only
+        "fps_total": 1.0 / total,         # both, the way it really runs
     }
 
 
@@ -95,41 +161,41 @@ def print_theory(baud: int, frame_bytes: int, strands: int = 1,
                  overlap: bool = False) -> dict[str, float]:
     th = theory(baud, frame_bytes, strands=strands, overlap=overlap)
     ser = th["tx_s"] + th["rx_s"]
-    print(f"\n  Theoretische Grenzen")
-    print(f"    Frame auf der Leitung     {th['frame_on_wire_bytes']:.0f} B "
-          f"({frame_bytes} B Bild + {OVERHEAD_BYTES} B Protokoll)")
-    print(f"    a) seriell @ {baud} Baud  {ser * 1000:7.2f} ms  "
+    print(f"\n  Theoretical limits")
+    print(f"    Frame on the wire         {th['frame_on_wire_bytes']:.0f} B "
+          f"({frame_bytes} B image + {OVERHEAD_BYTES} B protocol)")
+    print(f"    a) serial @ {baud} baud   {ser * 1000:7.2f} ms  "
           f"-> {th['fps_acked']:6.1f} fps")
-    print(f"    b) WS2812B-Ausgabe        {th['led_s'] * 1000:7.2f} ms  "
+    print(f"    b) WS2812B output         {th['led_s'] * 1000:7.2f} ms  "
           f"-> {th['fps_led']:6.1f} fps"
-          + (f"   ({strands} parallele Straenge)" if strands > 1 else ""))
+          + (f"   ({strands} parallel strands)" if strands > 1 else ""))
     if overlap:
         print(f"    max(a, b) -- RP2040       {th['total_s'] * 1000:7.2f} ms  "
-              f"-> {th['fps_total']:6.1f} fps  <- das ist die Obergrenze")
-        print(f"       PIO+DMA taktet im Hintergrund aus, waehrend schon das")
-        print(f"       naechste Bild hereinkommt.")
+              f"-> {th['fps_total']:6.1f} fps  <- that is the upper bound")
+        print(f"       PIO+DMA clocks out in the background while the next")
+        print(f"       frame is already coming in.")
     else:
-        print(f"    a + b (addiert sich)      {th['total_s'] * 1000:7.2f} ms  "
-              f"-> {th['fps_total']:6.1f} fps  <- das ist die Obergrenze")
-    dom = "die serielle Strecke" if th["led_s"] < ser else "das LED-Protokoll"
-    print(f"    Dominant ist {dom}.")
+        print(f"    a + b (they add up)       {th['total_s'] * 1000:7.2f} ms  "
+              f"-> {th['fps_total']:6.1f} fps  <- that is the upper bound")
+    dom = "the serial link" if th["led_s"] < ser else "the LED protocol"
+    print(f"    The dominant factor is {dom}.")
     if th["led_s"] >= ser:
-        print(f"    -> Mehr Baud bringt hier wenig. Abhilfe: LEDs auf mehrere Pins")
-        print(f"       aufteilen (--strands) oder auf getaktete Chips (APA102) wechseln.")
+        print(f"    -> More baud won't help much here. Remedy: split the LEDs across")
+        print(f"       several pins (--strands) or switch to clocked chips (APA102).")
     return th
 
 
 # ---------------------------------------------------------------------------
 def measure_latency(link: MatrixLink, n: int) -> list[float]:
-    print(f"\n  1) Latenz  --  {n} × PING/ACK")
+    print(f"\n  1) Latency  --  {n} × PING/ACK")
     samples = []
     for i in range(n):
         try:
             samples.append(link.ping() * 1000.0)
         except TimeoutError:
-            print(f"     Ping {i + 1}: Timeout")
+            print(f"     Ping {i + 1}: timeout")
     if not samples:
-        print("     keine Antwort")
+        print("     no response")
         return samples
     samples_sorted = sorted(samples)
     print(f"     min {min(samples):6.2f} ms   "
@@ -137,13 +203,13 @@ def measure_latency(link: MatrixLink, n: int) -> list[float]:
           f"mean {statistics.fmean(samples):6.2f} ms   "
           f"max {max(samples):6.2f} ms")
     if len(samples) > 2:
-        print(f"     Streuung (Stdabw)  {statistics.pstdev(samples):.2f} ms")
+        print(f"     Spread (std dev)   {statistics.pstdev(samples):.2f} ms")
     return samples
 
 
 # ---------------------------------------------------------------------------
 def sweep(fb: Framebuffer, i: int) -> None:
-    """Schneller Balken -- damit man die Geschwindigkeit auch sieht."""
+    """Fast bar -- so you can actually see the speed."""
     fb.clear()
     x = i % fb.width
     for y in range(fb.height):
@@ -154,7 +220,7 @@ def sweep(fb: Framebuffer, i: int) -> None:
 def measure_throughput(link: MatrixLink, seconds: float, th: dict) -> None:
     geo = link.geometry
     fb = Framebuffer(geo.width, geo.height)
-    print(f"\n  2) Durchsatz  --  Vollbilder mit ACK, {seconds:g} s")
+    print(f"\n  2) Throughput  --  full frames with ACK, {seconds:g} s")
 
     deltas: list[float] = []
     n = 0
@@ -172,36 +238,36 @@ def measure_throughput(link: MatrixLink, seconds: float, th: dict) -> None:
 
     dur = time.monotonic() - t0
     if not n:
-        print("     nichts gesendet")
+        print("     nothing sent")
         return
 
     fps = n / dur
     payload_bps = n * (OVERHEAD_BYTES + geo.frame_bytes) * BITS_PER_BYTE / dur
-    print(f"     {n} Frames in {dur:.2f} s  =  {fps:.1f} fps")
-    print(f"     Frame-Abstand   min {min(deltas):.2f} ms   "
+    print(f"     {n} frames in {dur:.2f} s  =  {fps:.1f} fps")
+    print(f"     Frame interval  min {min(deltas):.2f} ms   "
           f"median {statistics.median(deltas):.2f} ms   max {max(deltas):.2f} ms")
-    print(f"     Nutzlast        {payload_bps / 1000:.1f} kbit/s "
-          f"({n * geo.frame_bytes / dur / 1024:.1f} KiB/s Bilddaten)")
-    print(f"     Ausnutzung      {fps / th['fps_acked'] * 100:.0f} % des "
-          f"theoretischen Limits von {th['fps_acked']:.1f} fps")
+    print(f"     Payload         {payload_bps / 1000:.1f} kbit/s "
+          f"({n * geo.frame_bytes / dur / 1024:.1f} KiB/s image data)")
+    print(f"     Utilization     {fps / th['fps_acked'] * 100:.0f} % of the "
+          f"theoretical limit of {th['fps_acked']:.1f} fps")
 
     head = fps / th["fps_acked"]
     if head > 0.9:
-        print("     -> Die Baudrate ist der Flaschenhals. Mehr fps gibt es nur")
-        print("        ueber MX_SERIAL_BAUD (z. B. 250000 -> etwa doppelt so schnell).")
+        print("     -> The baud rate is the bottleneck. The only way to more fps")
+        print("        is MX_SERIAL_BAUD (e.g. 250000 -> roughly twice as fast).")
     elif head > 0.6:
-        print("     -> Nahe am Leitungslimit; der Rest ist USB- und OS-Latenz.")
+        print("     -> Close to the line limit; the rest is USB and OS latency.")
     else:
-        print("     -> Deutlich unter dem Leitungslimit: hier bremst die Latenz")
-        print("        pro Frame (USB-CDC-Puffer, Timer-Aufloesung des OS), nicht die Baudrate.")
+        print("     -> Well below the line limit: what slows things down here is the")
+        print("        per-frame latency (USB-CDC buffers, OS timer resolution), not the baud rate.")
 
 
 # ---------------------------------------------------------------------------
 def measure_flood(link: MatrixLink, count: int) -> None:
-    """Ohne Flusskontrolle senden -- und zaehlen, was hinten ankommt."""
+    """Send without flow control -- and count what arrives at the other end."""
     geo = link.geometry
     fb = Framebuffer(geo.width, geo.height)
-    print(f"\n  3) Flood (Stresstest)  --  {count} Frames OHNE auf ACK zu warten")
+    print(f"\n  3) Flood (stress test)  --  {count} frames WITHOUT waiting for ACK")
 
     link.drain()
     t0 = time.monotonic()
@@ -210,23 +276,23 @@ def measure_flood(link: MatrixLink, count: int) -> None:
         link.send_frame_nowait(fb.to_bytes())
     tx_dur = time.monotonic() - t0
 
-    time.sleep(1.0)  # Nachlauf: Antworten einsammeln
+    time.sleep(1.0)  # trailing window: collect the replies
     acks, nacks = link.drain()
 
-    print(f"     {count} Frames rausgeschoben in {tx_dur:.2f} s "
-          f"(nominell {count / tx_dur:.0f} fps)")
-    print(f"     zurueck: {acks} ACK, {nacks} NACK")
+    print(f"     {count} frames pushed out in {tx_dur:.2f} s "
+          f"(nominally {count / tx_dur:.0f} fps)")
+    print(f"     returned: {acks} ACK, {nacks} NACK")
     lost = count - acks - nacks
     if lost > 0:
-        print(f"     -> {lost} Frames ({lost / count * 100:.0f} %) sind unterwegs "
-              f"verloren gegangen.")
-        print("        Genau dafuer ist die ACK-Quittung da: FastLED sperrt waehrend")
-        print("        show() die Interrupts, in dieser Zeit fallen RX-Bytes auf den Boden.")
+        print(f"     -> {lost} frames ({lost / count * 100:.0f} %) got lost "
+              f"along the way.")
+        print("        This is exactly what the ACK is for: FastLED disables interrupts")
+        print("        during show(), and RX bytes fall on the floor in that time.")
     elif nacks:
-        print("     -> Keine Verluste, aber NACKs: der Empfangspuffer lief knapp ueber.")
+        print("     -> No losses, but NACKs: the receive buffer barely overflowed.")
     else:
-        print("     -> Alles angekommen. Der RX-Puffer hat gereicht;")
-        print("        bei groesseren Panels oder hoeherer Baudrate kippt das.")
+        print("     -> Everything arrived. The RX buffer was big enough;")
+        print("        with larger panels or a higher baud rate that tips over.")
 
 
 # ---------------------------------------------------------------------------
@@ -234,23 +300,23 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    ap.add_argument("-p", "--port", help="z. B. COM4 oder /dev/ttyACM0 (sonst MX8_PORT bzw. Auto)")
+    ap.add_argument("-p", "--port", help="e.g. COM4 or /dev/ttyACM0 (otherwise MX8_PORT or auto)")
     ap.add_argument("-b", "--baud", type=int, default=None,
-                   help="Standard: MX8_BAUD, sonst 115200")
-    ap.add_argument("--seconds", type=float, default=8.0, help="Dauer der Durchsatzmessung")
+                   help="default: MX8_BAUD, otherwise 115200")
+    ap.add_argument("--seconds", type=float, default=8.0, help="duration of the throughput measurement")
     ap.add_argument("--pings", type=int, default=40)
     ap.add_argument("--strands", type=int, default=1,
-                    help="parallel angesteuerte LED-Straenge (FastLED-Multi-Pin)")
+                    help="LED strands driven in parallel (FastLED multi-pin)")
     ap.add_argument("--rp2040", action="store_true",
-                    help="RP2040-Modell: PIO+DMA taktet im Hintergrund aus, "
-                         "Uebertragung und show() ueberlappen sich")
-    ap.add_argument("--flood", action="store_true", help="zusaetzlich den Stresstest fahren")
+                    help="RP2040 model: PIO+DMA clocks out in the background, "
+                         "transfer and show() overlap")
+    ap.add_argument("--flood", action="store_true", help="additionally run the stress test")
     ap.add_argument("--flood-count", type=int, default=200)
     ap.add_argument("--brightness", type=int, default=None)
     ap.add_argument("--preview", action="store_true",
-                    help="nur die theoretische Rechnung, ohne Hardware")
+                    help="only the theoretical calculation, no hardware")
     ap.add_argument("--release", action="store_true",
-                    help="am Ende RELEASE senden statt CLEAR")
+                    help="send RELEASE at the end instead of CLEAR")
     args = ap.parse_args(argv)
 
     print("=" * 68)
@@ -260,13 +326,13 @@ def main(argv=None) -> int:
     if args.preview:
         panels = [("8x8", 64), ("8x32", 256), ("16x16", 256),
                   ("16x32", 512), ("32x32", 1024)]
-        print("\n  Obergrenze je Panelgroesse und Baudrate (fps)")
+        print("\n  Upper bound per panel size and baud rate (fps)")
         if args.rp2040:
-            print("  RP2040-Modell: PIO+DMA taktet die LEDs im Hintergrund aus, waehrend")
-            print("  schon das naechste Bild hereinkommt -- es zaehlt der laengere Weg.\n")
+            print("  RP2040 model: PIO+DMA clocks the LEDs out in the background while")
+            print("  the next frame is already coming in -- the longer path counts.\n")
         else:
-            print("  Die WS2812B-Ausgabe kostet unabhaengig von der Baudrate Zeit und")
-            print("  addiert sich zur Uebertragung -- ab ein paar hundert LEDs dominiert sie.\n")
+            print("  The WS2812B output takes time regardless of the baud rate and adds")
+            print("  to the transfer -- beyond a few hundred LEDs it dominates.\n")
         head = "  Panel    LEDs   show()  " + "".join(f"{b // 1000:>7}k" for b in
                                                       (115200, 250000, 500000, 1000000, 2000000))
         print(head)
@@ -278,10 +344,10 @@ def main(argv=None) -> int:
                 t = theory(baud, leds * 3, strands=args.strands, overlap=args.rp2040)
                 row += f"{t['fps_total']:8.1f}"
             print(row)
-        print(f"\n  show() bei {args.strands} Strang"
-              + ("" if args.strands == 1 else "/Straengen") + ".")
-        print("  Ohne Hardware endet der Test hier -- fuer echte Messungen den")
-        print("  Nano anstecken und ohne --preview starten.")
+        print(f"\n  show() with {args.strands} strand"
+              + ("" if args.strands == 1 else "s") + ".")
+        print("  Without hardware the test ends here -- for real measurements, plug in")
+        print("  the Nano and run without --preview.")
         return 0
 
     link = MatrixLink(args.port, args.baud, ack_timeout=1.0,
@@ -289,7 +355,7 @@ def main(argv=None) -> int:
     link.open()
     try:
         geo = link.wait_ready(timeout=8.0)
-        print(f"\n  Port    {link.port} @ {link.baud} Baud")
+        print(f"\n  Port    {link.port} @ {link.baud} baud")
         print(f"  Panel   {geo}")
         if args.brightness is not None:
             link.set_brightness(args.brightness)
@@ -301,8 +367,8 @@ def main(argv=None) -> int:
             measure_flood(link, args.flood_count)
 
         s = link.stats
-        print(f"\n  Gesamt: {s['frames_sent']} Frames, {s['acks']} ACK, "
-              f"{s['nacks']} NACK, {s['crc_errors']} CRC-Fehler")
+        print(f"\n  Total: {s['frames_sent']} frames, {s['acks']} ACK, "
+              f"{s['nacks']} NACK, {s['crc_errors']} CRC errors")
         print("=" * 68)
 
         try:
@@ -318,10 +384,10 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except KeyboardInterrupt:
-        print("\nAbgebrochen.")
+        print("\nAborted.")
         sys.exit(130)
     except LinkError as e:
-        print(f"Fehler: {e}", file=sys.stderr)
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
     except TimeoutError as e:
         print(f"Timeout: {e}", file=sys.stderr)
