@@ -330,7 +330,7 @@
       "netlist": "",
       "plot": "",
       "specctra_dsn": "",
-      "step": "",
+      "step": "LED_Matrix_16x16_2L.step",
       "vrml": ""
     },
     "page_layout_descr_file": ""
