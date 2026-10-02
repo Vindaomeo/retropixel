@@ -91,3 +91,19 @@ Im Ordner `jlcpcb/` jedes Projekts liegen fertige Upload-Dateien:
 **Bestellablauf:** Gerber-Zip hochladen → Lagen/Kupferstärke wählen → "PCB Assembly" aktivieren, Seite "Top" → BOM und CPL hochladen → in der Vorschau die LED-Ausrichtung prüfen (Pin-1-Markierung) → Lagerbestand der Teile prüfen.
 
 Nach Änderungen in KiCad die Gerber neu erzeugen: Datei → Fertigungsunterlagen → Gerber + Bohrdateien, oder mit dem Plugin "Fabrication Toolkit" (erzeugt Gerber, BOM und CPL in einem Schritt aus dem LCSC-Feld).
+
+## Lichtgitter (3D-Druck)
+
+`gen_lightgrid.py` erzeugt das Trenngitter als STL, passend zur Platine. Raster, Stegbreite, Matrixgröße und Bohrungen liest es direkt aus `gen_ledmatrix.py`, beide Dateien müssen also im selben Ordner liegen.
+
+```
+pip install manifold3d numpy
+python gen_lightgrid.py          -> LED_Matrix_16x16_Lichtgitter.stl
+```
+
+- 160 × 160 × 10 mm, Stege 1,2 mm genau auf den bauteilfreien Streifen der Platine, Außenrahmen 1,2 mm innerhalb der Platinenkante
+- 9 Schraubdome (Ø 4 mm) über den Bohrungen, Kernloch Ø 1,6 mm für M2-Blechschrauben von unten (z.B. M2 × 8), oben geschlossen
+- Engster Abstand Gitter zu einem Bauteil-Courtyard: 0,35 mm (Randspalten), innen 0,95 mm
+- Druck: Auflageseite nach unten, ohne Stützen. 0,4-mm-Düse, weißes oder schwarzes PLA (weiß reflektiert mehr Licht, schwarz trennt die Pixel schärfer)
+
+Parameter oben im Script: `HEIGHT` (Höhe), `FIX` ("screw", "peg" = Zapfen durch die Bohrungen, "none"), `OUTER_T` (für lückenlos aneinandergereihte Panels `pcb.WALL / 2`), `TOP_CHAMFER` (Stege oben verjüngt, z.B. 0.6).
