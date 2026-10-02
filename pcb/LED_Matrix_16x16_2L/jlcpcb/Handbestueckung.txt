@@ -1,0 +1,4 @@
+Nicht von JLCPCB bestueckt (JLC_BOTTOM = False), selbst loeten:
+  U1     74AHCT1G125  Package_TO_SOT_SMD:SOT-23-5  LCSC C7484
+  R1     33R          Resistor_SMD:R_0402_1005Metric LCSC C25105
+  C257   100nF        Capacitor_SMD:C_0402_1005Metric LCSC C1525
