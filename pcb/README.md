@@ -49,7 +49,7 @@ Danach im PCB-Editor einmal **Zonen füllen (B)** und **DRC** laufen lassen.
 - **Trennstege:** 1,2 mm breite Streifen auf allen Zellgrenzen sind bauteilfrei (Rule Areas "Steg_*", Footprints verboten, Leiterbahnen erlaubt). Die Stege sind auf Dwgs.User eingezeichnet.
   Lichte Weite pro Zelle: 8,8 mm. LED-Courtyard: 6,9 × 5,5 mm.
 - **Löcher:** 9 × Ø2,2 mm (NPTH) an den Steg-Kreuzungen 4/8/12, für M2-Schrauben oder Zapfen des Gitters.
-- **Fiducials:** 3 Passermarken auf der Oberseite an den Steg-Kreuzungen (1,1), (15,1) und (1,15), unsymmetrisch angeordnet. 1 mm Kupferpunkt, 2 mm Maskenöffnung, 3 mm kupferfrei. Sie liegen unter dem Trenngitter, das erst nach der Bestückung aufgesetzt wird.
+- **Fiducials:** 3 Passermarken auf der Oberseite an den Steg-Kreuzungen (5,2), (14,2) und (2,11), unsymmetrisch angeordnet. 1 mm Kupferpunkt, 2 mm Maskenöffnung, 3 mm kupferfrei. Sie liegen unter dem Trenngitter, das erst nach der Bestückung aufgesetzt wird.
 - **Fiducials Unterseite:** 3 weitere an denselben Kreuzungen auf B.Cu (FID4-FID6), damit auch die Unterseite maschinell bestückt werden kann (`JLC_BOTTOM = True`).
 - **Datenkette:** D1 links oben, Zeile 1 nach rechts, Zeile 2 nach links usw. (Serpentine). D256 endet links unten.
 - **Eingang (Unterseite, unter D1):** Pad DIN → 74AHCT1G125 (3,3 V → 5 V) → 33 Ω → D1. Daneben ein GND-Pad fürs Datenkabel.
@@ -74,7 +74,7 @@ Jedes Bauteil hat ein Feld **LCSC** mit der JLC/LCSC-Teilenummer, im Schaltplan 
 
 | Bauteil | Wert | Footprint | LCSC |
 |---|---|---|---|
-| D1-D256 | WS2812B-B/W | LED_WS2812B_PLCC4_5.0x5.0mm | C114586 (Alternative C2761795) |
+| D1-D256 | WS2812B-B/W | LED_WS2812B_PLCC4_5.0x5.0mm | C2843785 (dein Eintrag; Alternativen C2761795, C114586) |
 | C1-C257 | 100 nF X7R | 0402 | C1525 (Basic) |
 | R1 | 33 Ω | 0402 | C25105 (Basic) |
 | U1 | SN74AHCT1G125DBVR | SOT-23-5 | C7484 |
@@ -99,11 +99,30 @@ Nach Änderungen in KiCad die Gerber neu erzeugen: Datei → Fertigungsunterlage
 ```
 pip install manifold3d numpy
 python gen_lightgrid.py          -> LED_Matrix_16x16_Lichtgitter.stl
+python gen_lightgrid.py --test   -> Teststück 3 × 3 Zellen (--test 4 für 4 × 4)
 ```
 
 - 160 × 160 × 10 mm, Stege 1,2 mm genau auf den bauteilfreien Streifen der Platine, Außenrahmen 1,2 mm innerhalb der Platinenkante
-- 9 Schraubdome (Ø 4 mm) über den Bohrungen, Kernloch Ø 1,6 mm für M2-Blechschrauben von unten (z.B. M2 × 8), oben geschlossen
+- Befestigung: eingestellt ist `FIX = "peg"` (dein Eintrag): 9 Zapfen Ø 1,95 mm durch die inneren Bohrungen, ragen unten 0,6 mm heraus zum Verkleben oder Verschmelzen. Die STL ist dafür umgedreht (Oberseite aufs Druckbett). `"screw"` (Schraubdome Ø 4 mm) wäre in den Pixeln sichtbar
 - Engster Abstand Gitter zu einem Bauteil-Courtyard: 0,35 mm (Randspalten), innen 0,95 mm
 - Druck: Auflageseite nach unten, ohne Stützen. 0,4-mm-Düse, weißes oder schwarzes PLA (weiß reflektiert mehr Licht, schwarz trennt die Pixel schärfer)
 
 Parameter oben im Script: `HEIGHT` (Höhe), `FIX` ("screw", "peg" = Zapfen durch die Bohrungen, "none"), `OUTER_T` (für lückenlos aneinandergereihte Panels `pcb.WALL / 2`), `TOP_CHAMFER` (Stege oben verjüngt, z.B. 0.6).
+
+**Teststück:** Vor dem großen Druck ein 3 × 3-Stück (ca. 3 g, 30,6 × 30,6 mm) in den Farben drucken, die du vergleichen willst. Es passt in die Ecke links oben bei D1 (Rahmen links und oben, voller Steg rechts und unten). Dort einzelne LEDs voll aufdrehen und schauen, wie stark die Nachbarzellen mitleuchten.
+
+## Trägerrahmen (Rückseite)
+
+`gen_lightgrid.py` erzeugt neben dem Lichtgitter auch den Trägerrahmen (`*_Rahmen.stl`), gedacht zum Einbau in ein Gehäuse.
+
+- Läuft auf der Rückseite 10 mm breit am Rand entlang (`FRAME_BAND` in `gen_ledmatrix.py`). Dieser Streifen ist auf der Platinenunterseite bauteilfrei, die Auflage ist auf B.Fab eingezeichnet.
+- 10 mm Bautiefe (`FRAME_DEPTH`), 2 mm Außenwand, Auflage mit 45°-Schräge.
+- **Befestigung: verkleben.** Der Rahmen hat 11 dünne Stifte (1,4 mm lang, also kürzer als die Platine dick ist), die von hinten in die Bohrungen der Platine greifen: 8 × in die 2,2-mm-Löcher (`FRAME_HOLES`), 3 × in die 1,9-mm-Positionierlöcher (`LOCATE_HOLES`). Die Positionierlöcher sind unsymmetrisch, der Rahmen passt nur in einer Lage. Keine Schrauben, im Lichtgitter ist an diesen Stellen nichts, was in den Pixeln sichtbar wäre.
+- Pegelwandler, DIN/DOUT- und GND-Pads sind um 2 Zellen nach innen gerückt (`IO_SHIFT`), die Datenleitungen laufen unten flach unter dem Rahmen durch.
+- Druck: Rückseite auf dem Druckbett, Auflage mit den Stiften oben, ohne Stützen. Ca. 49 g PLA. Zum Einbau umdrehen, Kleber auf die Auflage, Stifte in die Bohrungen.
+- Optional: Kabeldurchlass über `CABLE_SLOTS`.
+
+```
+python gen_lightgrid.py               -> Lichtgitter + Rahmen
+python gen_lightgrid.py --only frame  -> nur Rahmen
+```

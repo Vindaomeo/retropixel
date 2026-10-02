@@ -58,13 +58,30 @@ ORIGIN = (50.0, 50.0)        # linke obere Platinenecke auf dem Blatt (mm)
 HOLE_DIA = 2.2
 HOLES = [(i, j) for i in (4, 8, 12) for j in (4, 8, 12)]
 
+# Traegerrahmen auf der Rueckseite (gen_lightgrid.py erzeugt ihn als STL):
+# Auf der Unterseite bleibt ein Randstreifen FRAME_BAND frei von Bauteilen.
+# Rahmen, Platine und Lichtgitter werden an FRAME_HOLES verschraubt
+# (M2 von hinten durch Rahmen und Platine in Schraubdome des Gitters).
+FRAME_BAND = 10.0
+FRAME_HOLES = [(1, 1), (COLS // 2, 1), (COLS - 1, 1),
+               (1, ROWS // 2), (COLS - 1, ROWS // 2),
+               (1, ROWS - 1), (COLS // 2, ROWS - 1), (COLS - 1, ROWS - 1)]
+# Positionierloecher fuer den (verklebten) Rahmen: Passstifte aus 1,75-mm-
+# Filament stecken in Platine und Rahmen. Unsymmetrisch angeordnet, damit der
+# Rahmen nur in einer Lage passt.
+LOCATE_HOLES = [(1, 3), (COLS - 1, 3), (1, ROWS - 3)]
+LOC_DIA = 1.9
+# Ein-/Ausgang (Pegelwandler, Loetpads) um so viele Zellen nach innen
+# verschieben, damit sie nicht unter dem Rahmen liegen (gerade Zahl!)
+IO_SHIFT = 2
+
 # Fiducials (Passermarken fuer die Bestueckung) an Steg-Kreuzungen, oben.
 # 3 Stueck, unsymmetrisch, damit der Automat die Lage eindeutig erkennt.
 # 1 mm Kupferpunkt, 2 mm Maskenoeffnung, 3 mm kupferfrei.
-FIDUCIALS = [(1, 1), (COLS - 1, 1), (1, ROWS - 1)]
+FIDUCIALS = [(5, 2), (COLS - 2, 2), (2, ROWS - 5)]
 # Fiducials auf der Unterseite (gleiche Kreuzungen; von unten gesehen gespiegelt,
 # also ebenfalls unsymmetrisch). Leere Liste = keine.
-FIDUCIALS_BOTTOM = [(1, 1), (COLS - 1, 1), (1, ROWS - 1)]
+FIDUCIALS_BOTTOM = [(5, 2), (COLS - 2, 2), (2, ROWS - 5)]
 
 # Einspeisepunkte (Spalte, Zeile): +5V-Pad in dieser Zelle (Unterseite),
 # GND-Pad in der Zelle rechts daneben
@@ -190,6 +207,11 @@ FP = {
         tags="hole npth", attr="exclude_from_pos_files exclude_from_bom",
         pads=[("", "np_thru_hole", "circle", (0, 0), (HOLE_DIA, HOLE_DIA), HOLE_DIA, None)],
         silk=[], crtyd=None, fab=[], model=None, ref_at=(0, 0)),
+    "LOC": dict(
+        lib="LEDMatrix:NPTH_%.1fmm" % LOC_DIA, descr="Positionierloch fuer den Rahmen (Passstift)",
+        tags="hole npth locate", attr="exclude_from_pos_files exclude_from_bom",
+        pads=[("", "np_thru_hole", "circle", (0, 0), (LOC_DIA, LOC_DIA), LOC_DIA, None)],
+        silk=[], crtyd=None, fab=[], model=None, ref_at=(0, 0)),
     # Fiducial ohne Courtyard, damit es in der Steg-Sperrflaeche liegen darf
     "FID": dict(
         lib="LEDMatrix:Fiducial_1mm_Mask2mm", descr="Fiducial 1 mm, Maskenoeffnung 2 mm",
@@ -287,9 +309,13 @@ def build_design():
         d.parts.append(dict(ref="J%d" % (j + 1), value="GND", sym="Connector_Generic:Conn_01x01",
                             fp="PAD_PWR", pins={"1": "GND"}))
         j += 2
-    for i, _ in enumerate(HOLES):
+    for i, _ in enumerate(HOLES + FRAME_HOLES):
         d.parts.append(dict(ref="H%d" % (i + 1), value="Hole", sym="Mechanical:MountingHole",
                             fp="HOLE", pins={}))
+    n0 = len(HOLES + FRAME_HOLES)
+    for i, _ in enumerate(LOCATE_HOLES):
+        d.parts.append(dict(ref="H%d" % (n0 + i + 1), value="Locate", sym="Mechanical:MountingHole",
+                            fp="LOC", pins={}))
     for i, _ in enumerate(FIDUCIALS + FIDUCIALS_BOTTOM):
         d.parts.append(dict(ref="FID%d" % (i + 1), value="Fiducial", sym="Mechanical:Fiducial",
                             fp="FID", pins={}))
@@ -979,7 +1005,7 @@ def write_sch(d, path):
     hx, hy = X0, y + 30.48
     for p in d.parts:
         if p["ref"].startswith("H"):
-            s.symbol("Mechanical:MountingHole", p["ref"], "Hole", hx, hy, footprint=FP["HOLE"]["lib"],
+            s.symbol("Mechanical:MountingHole", p["ref"], p["value"], hx, hy, footprint=FP[p["fp"]]["lib"],
                      ref_off=(2.54, -1.27), val_off=(2.54, 1.27), hide_val=True)
             hx += 17.78
     for p in d.parts:
@@ -1174,22 +1200,27 @@ def write_pcb(d, path):
                 pts = [(cx - 2.45, cy + 1.65), (cx - 4.1, cy + 1.65), (cx - 4.1, cy + PITCH + 1.65), (cx - 2.45, cy + PITCH + 1.65)]
             pcb.seg(pts, net)
 
-    # --- Eingang (Unterseite, links oben unter LED 1) ------------------------
+    # --- Eingang (Unterseite, IO_SHIFT Zellen innerhalb von LED 1) ------------
     c1, r1 = led_pos(1)
-    cx, cy = cell_center(c1, r1)
-    s1 = 1 if flow_right(r1) else -1
+    cx0, cy0 = cell_center(c1, r1)
     din_via = A(c1, r1, -4.0, 1.65)
     pcb.seg([A(c1, r1, -2.45, 1.65), din_via], dnet(0))
     pcb.via(din_via, dnet(0))
+    sx = 1 if c1 < COLS / 2 else -1
+    sy = 1 if r1 < ROWS / 2 else -1
+    cx, cy = cell_center(c1 + sx * IO_SHIFT, r1 + sy * IO_SHIFT)
+    chan_x = cx - sx * PITCH / 2              # freier Kanal unten an der Zellgrenze
+    din_route = [din_via, (din_via[0] + sx * 1.65, cy0), (chan_x, cy0), (chan_x, cy),
+                 (chan_x + sx * 1.65, cy + 1.65)]
     # U1 an der Zellgrenze zu Zelle 2 (dort ist unten frei), 180 Grad
     ux, uy = cx + 5.0, cy
     pcb.footprint(parts["U1"], ux, uy, 180, "B")
     P = lambda num: pad_abs("SOT235", num, ux, uy, 180, "B")
     # R1 unter LED 1
-    rx, ry = cx - 1.0, din_via[1]
+    rx, ry = cx - 1.0, cy + 1.65
     pcb.footprint(parts["R1"], rx, ry, 0, "B")
     R = lambda num: pad_abs("R0402", num, rx, ry, 0, "B")
-    pcb.seg([din_via, R("1")], dnet(0), layer="B.Cu")
+    pcb.seg(din_route + [R("1")], dnet(0), layer="B.Cu")
     y4 = P("4")
     pcb.seg([R("2"), (y4[0] - 0.7, R("2")[1]), y4], "/DATA_Y", layer="B.Cu")
     # U1 VCC -> +5V-Via (unter dem LED-Koerper, oben frei) + C257
@@ -1221,12 +1252,16 @@ def write_pcb(d, path):
     pcb.seg([dp, dout_via], dnet(N_LED))
     pcb.via(dout_via, dnet(N_LED))
     dirx = 1 if dout_via[0] < ocx else -1          # Richtung ins Innere
-    j3 = (ocx + dirx * 10.0, ocy)
+    diry = 1 if rn < ROWS / 2 else -1
+    ox2, oy2 = cell_center(cn + dirx * IO_SHIFT, rn + diry * IO_SHIFT)
+    ch = ox2 - dirx * PITCH / 2
+    j3 = (ox2 + dirx * 10.0, oy2)
     pcb.footprint(parts["J3"], j3[0], j3[1], 0, "B")
-    pcb.seg([dout_via, (dout_via[0] + dirx * 1.65, ocy), (j3[0] - dirx * 1.5, ocy)], dnet(N_LED), layer="B.Cu")
-    pcb.footprint(parts["J4"], ocx + dirx * 20.0, ocy, 0, "B")
-    pcb.text("DOUT", (j3[0], ocy + 2.4), "B.SilkS", 1.0, mirror=True)
-    pcb.text("GND", (ocx + dirx * 20.0, ocy + 2.4), "B.SilkS", 1.0, mirror=True)
+    pcb.seg([dout_via, (dout_via[0] + dirx * 1.65, ocy), (ch, ocy), (ch, oy2), (j3[0] - dirx * 1.5, oy2)],
+            dnet(N_LED), layer="B.Cu")
+    pcb.footprint(parts["J4"], ox2 + dirx * 20.0, oy2, 0, "B")
+    pcb.text("DOUT", (j3[0], oy2 + 2.4), "B.SilkS", 1.0, mirror=True)
+    pcb.text("GND", (ox2 + dirx * 20.0, oy2 + 2.4), "B.SilkS", 1.0, mirror=True)
 
     # --- Einspeisung (Unterseite) --------------------------------------------
     j = 5
@@ -1242,7 +1277,7 @@ def write_pcb(d, path):
         j += 2
 
     # --- Loecher an Steg-Kreuzungen -----------------------------------------
-    for i, (hi, hj) in enumerate(HOLES):
+    for i, (hi, hj) in enumerate(HOLES + FRAME_HOLES + LOCATE_HOLES):
         pcb.footprint(parts["H%d" % (i + 1)], X0 + hi * PITCH, Y0 + hj * PITCH, 0)
     # --- Fiducials (Oberseite, an Steg-Kreuzungen) ---------------------------
     for i, (fi, fj) in enumerate(FIDUCIALS):
@@ -1252,6 +1287,8 @@ def write_pcb(d, path):
 
     # --- Platinenumriss, Stege, Flaechen -------------------------------------
     pcb.grect((X0, Y0), (X0 + W, Y0 + H), "Edge.Cuts", 0.1)
+    # Auflage des Traegerrahmens (Unterseite) als Zeichnung
+    pcb.grect((X0 + FRAME_BAND, Y0 + FRAME_BAND), (X0 + W - FRAME_BAND, Y0 + H - FRAME_BAND), "B.Fab", 0.1)
     hw = WALL / 2
     for i in range(COLS + 1):
         x = X0 + i * PITCH
@@ -1473,7 +1510,7 @@ def write_project(folder):
         fh.write('(fp_lib_table\n  (lib (name "LEDMatrix")(type "KiCad")(uri "${KIPRJMOD}/LEDMatrix.pretty")(options "")(descr "Projekt-Footprints"))\n)\n')
     lib = os.path.join(folder, "LEDMatrix.pretty")
     os.makedirs(lib, exist_ok=True)
-    for key in ("PAD_SIG", "PAD_PWR", "HOLE", "FID"):
+    for key in ("PAD_SIG", "PAD_PWR", "HOLE", "LOC", "FID"):
         fp = FP[key]
         name = fp["lib"].split(":")[1]
         o = ['(footprint "%s" (version 20221018) (generator gen_ledmatrix)' % name,

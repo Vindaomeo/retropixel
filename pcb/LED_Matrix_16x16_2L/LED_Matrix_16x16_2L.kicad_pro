@@ -156,7 +156,7 @@
         "min_track_width": 0.15,
         "min_via_annular_width": 0.1,
         "min_via_diameter": 0.5,
-        "solder_mask_to_copper_clearance": 0.005,
+        "solder_mask_to_copper_clearance": 0.0,
         "use_height_for_length_calcs": true
       },
       "teardrop_options": [
@@ -330,7 +330,7 @@
       "netlist": "",
       "plot": "",
       "specctra_dsn": "",
-      "step": "LED_Matrix_16x16_2L.step",
+      "step": "",
       "vrml": ""
     },
     "page_layout_descr_file": ""
