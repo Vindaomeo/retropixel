@@ -86,8 +86,8 @@ retropixel/
 │   └── mx8/patterns.py          host animations
 ├── tests/                       cross-test C ↔ Python, no hardware needed
 ├── tools/build_check.sh         build firmware against real FastLED
-├── docs/wiring.html             wiring diagram as a graphic (open in browser)
-├── docs/pixelgrid.html          pixel grid for square pixels (16×16 build)
+├── docs/wiring.md               wiring diagram with graphics
+├── docs/pixelgrid.md            pixel grid for square pixels (16×16 build)
 ├── docs/rainbow.gif             the six rainbow patterns
 ├── PROTOCOL.md                  complete protocol specification
 ├── WIRING.md                    wiring, power budget, pitfalls
@@ -112,7 +112,7 @@ background instead of disabling interrupts. See
 [PROTOCOL.md §6](PROTOCOL.md).
 
 **→ Complete wiring diagram with power budget: [WIRING.md](WIRING.md)**
-(graphical: open [`docs/wiring.html`](docs/wiring.html) in a browser)
+(graphical version: [`docs/wiring.md`](docs/wiring.md))
 
 > **Power supply.** 64 WS2812B draw about **3.8 A** at full white. The
 > Nano Every's 5V pin can't handle that — it hangs off USB and tops out at

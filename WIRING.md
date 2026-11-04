@@ -9,7 +9,7 @@
 > That is a factor of 8 short. For **dimmed** operation, on the other hand, USB is plenty.
 
 A graphical version with both wiring variants lives in
-[`docs/wiring.html`](docs/wiring.html) — just open it in a browser.
+[`docs/wiring.md`](docs/wiring.md).
 
 ---
 

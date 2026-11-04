@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 900 470" role="img" aria-label="Wiring with an external 5V power supply">
+  <defs>
+    <style>
+      .box2{fill:#ffffff;stroke:#2b2f38;stroke-width:2}
+      .boxalt2{fill:#f2f4f8;stroke:#2b2f38;stroke-width:2}
+      .lbl2{font:600 13px ui-sans-serif,system-ui,sans-serif;fill:#16181d}
+      .lbls2{font:11.5px ui-sans-serif,system-ui,sans-serif;fill:#5b6270}
+      .pin2{font:600 11.5px ui-monospace,Menlo,monospace;fill:#16181d}
+      .wD2{stroke:#1a8a6d;stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round}
+      .wP2{stroke:#d0342c;stroke-width:3.5;fill:none;stroke-linecap:round;stroke-linejoin:round}
+      .wG2{stroke:#2b2f38;stroke-width:3.5;fill:none;stroke-linecap:round;stroke-linejoin:round}
+      .led2{fill:#e7ebf2;stroke:#aab3c2;stroke-width:1}
+      .jn{fill:#2b2f38}
+      .jnp{fill:#d0342c}
+    </style>
+  </defs>
+  <rect x="0" y="0" width="900" height="470" fill="#ffffff"/>
+
+  <!-- PC -->
+  <rect class="boxalt2" x="18" y="90" width="112" height="72" rx="8"/>
+  <text class="lbl2" x="74" y="114" text-anchor="middle">PC</text>
+  <text class="lbls2" x="74" y="131" text-anchor="middle">USB: data</text>
+  <text class="lbls2" x="74" y="146" text-anchor="middle">+ Nano power</text>
+  <path class="wG2" d="M130 126 H 210"/>
+
+  <!-- Nano -->
+  <rect class="box2" x="210" y="40" width="182" height="180" rx="8"/>
+  <text class="lbl2" x="301" y="66" text-anchor="middle">Arduino Nano Every</text>
+  <text class="lbls2" x="301" y="84" text-anchor="middle">powered from USB</text>
+  <text class="pin2" x="384" y="128" text-anchor="end">D6</text>
+  <text class="pin2" x="384" y="166" text-anchor="end">5V</text>
+  <text class="pin2" x="384" y="204" text-anchor="end">GND</text>
+
+  <!-- 5V pin stays unconnected -->
+  <g stroke="#b45309" stroke-width="2.5" stroke-linecap="round">
+    <path d="M400 156 l 16 16"/><path d="M416 156 l -16 16"/>
+  </g>
+  <text class="lbls2" x="424" y="169" fill="#b45309">leave 5V pin open</text>
+
+  <!-- Data -->
+  <path class="wD2" d="M392 123 H 452"/>
+  <rect x="452" y="111" width="56" height="24" rx="4" fill="#ffffff" stroke="#1a8a6d" stroke-width="2"/>
+  <text class="pin2" x="480" y="127" text-anchor="middle" fill="#1a8a6d">330 Ω</text>
+  <path class="wD2" d="M508 123 H 636"/>
+
+  <!-- Panel -->
+  <rect class="box2" x="636" y="40" width="222" height="196" rx="8"/>
+  <text class="lbl2" x="747" y="64" text-anchor="middle">8×8 WS2812B</text>
+  <text class="pin2" x="646" y="127">DIN</text>
+  <text class="pin2" x="646" y="170">+5V</text>
+  <text class="pin2" x="646" y="209">GND</text>
+  <g transform="translate(696,86)">
+    <g id="rowB">
+      <circle class="led2" cx="0"  cy="0" r="5.5"/><circle class="led2" cx="19" cy="0" r="5.5"/>
+      <circle class="led2" cx="38" cy="0" r="5.5"/><circle class="led2" cx="57" cy="0" r="5.5"/>
+      <circle class="led2" cx="76" cy="0" r="5.5"/><circle class="led2" cx="95" cy="0" r="5.5"/>
+      <circle class="led2" cx="114" cy="0" r="5.5"/><circle class="led2" cx="133" cy="0" r="5.5"/>
+    </g>
+    <use xlink:href="#rowB" y="19"/><use xlink:href="#rowB" y="38"/><use xlink:href="#rowB" y="57"/>
+    <use xlink:href="#rowB" y="76"/><use xlink:href="#rowB" y="95"/><use xlink:href="#rowB" y="114"/>
+    <use xlink:href="#rowB" y="133"/>
+  </g>
+
+  <!-- Power supply -->
+  <rect class="boxalt2" x="210" y="352" width="182" height="76" rx="8"/>
+  <text class="lbl2" x="301" y="380" text-anchor="middle">Power supply 5 V DC</text>
+  <text class="lbls2" x="301" y="398" text-anchor="middle">≥ 4 A for full brightness</text>
+  <text class="pin2" x="384" y="418" text-anchor="end">+ / −</text>
+
+  <!-- 5V rail: PSU -> panel -->
+  <path class="wP2" d="M392 376 H 556 V 165 H 636"/>
+  <!-- GND rail: PSU -> panel -->
+  <path class="wG2" d="M392 410 H 600 V 204 H 636"/>
+  <!-- Nano GND -> common ground -->
+  <path class="wG2" d="M392 204 H 440 V 410"/>
+  <circle class="jn" cx="440" cy="410" r="5"/>
+
+  <!-- Electrolytic cap between the rails -->
+  <path class="wP2" d="M556 286 H 578"/>
+  <path class="wG2" d="M600 286 H 586"/>
+  <line x1="578" y1="270" x2="578" y2="302" stroke="#d0342c" stroke-width="3.5" stroke-linecap="round"/>
+  <line x1="586" y1="270" x2="586" y2="302" stroke="#2b2f38" stroke-width="3.5" stroke-linecap="round"/>
+  <circle class="jnp" cx="556" cy="286" r="5"/>
+  <circle class="jn" cx="600" cy="286" r="5"/>
+  <text class="lbls2" x="536" y="282" text-anchor="end">1000 µF / 10 V</text>
+  <text class="lbls2" x="536" y="297" text-anchor="end">mind the polarity</text>
+
+  <!-- Note: common ground -->
+  <rect x="46" y="248" width="322" height="34" rx="7" fill="#e8f6f1" stroke="#1a8a6d" stroke-width="1.5"/>
+  <text class="lbl2" x="62" y="270" fill="#0f6b53">✓  Tie GND of Nano + PSU + panel together</text>
+</svg>

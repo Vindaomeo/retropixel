@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="-175 0 1275 470" role="img" aria-label="Cross-section of the display stack">
+  <defs>
+    <style>
+      .bx{stroke:#2b2f38;stroke-width:1.6}
+      .lbl{font:600 12.5px ui-sans-serif,system-ui,sans-serif;fill:#16181d}
+      .lbs{font:11.5px ui-sans-serif,system-ui,sans-serif;fill:#5b6270}
+      .dim{stroke:#2f5fd0;stroke-width:1.2;fill:none}
+      .dimt{font:600 11px ui-monospace,Menlo,monospace;fill:#2f5fd0}
+      .lead{stroke:#9aa3b2;stroke-width:1;stroke-dasharray:3 3;fill:none}
+    </style>
+    <marker id="ah" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+      <path d="M0 0 L7 3.5 L0 7 z" fill="#2f5fd0"/>
+    </marker>
+    <marker id="ah2" markerWidth="7" markerHeight="7" refX="1" refY="3.5" orient="auto">
+      <path d="M7 0 L0 3.5 L7 7 z" fill="#2f5fd0"/>
+    </marker>
+  </defs>
+  <rect x="-175" y="0" width="1275" height="470" fill="#ffffff"/>
+
+  <g opacity="0.5">
+    <path d="M255 300 L215 200 L295 200 z" fill="#ffd24a"/>
+    <path d="M405 300 L365 200 L445 200 z" fill="#ffd24a"/>
+    <path d="M555 300 L515 200 L595 200 z" fill="#ffd24a"/>
+    <path d="M705 300 L665 200 L745 200 z" fill="#ffd24a"/>
+  </g>
+
+  <rect class="bx" x="140" y="150" width="680" height="18" fill="#3a4048" opacity="0.85"/>
+  <rect class="bx" x="140" y="172" width="680" height="12" fill="#eef1f6"/>
+  <g fill="#f4f6fa" stroke="#2b2f38" stroke-width="1.4">
+    <rect x="140" y="196" width="10" height="104"/>
+    <rect x="290" y="196" width="10" height="104"/>
+    <rect x="440" y="196" width="10" height="104"/>
+    <rect x="590" y="196" width="10" height="104"/>
+    <rect x="740" y="196" width="10" height="104"/>
+    <rect x="810" y="196" width="10" height="104"/>
+  </g>
+  <rect class="bx" x="140" y="300" width="680" height="14" fill="#1f6f3e"/>
+  <g fill="#ffffff" stroke="#8c93a1" stroke-width="1">
+    <rect x="240" y="289" width="30" height="12" rx="2"/>
+    <rect x="390" y="289" width="30" height="12" rx="2"/>
+    <rect x="540" y="289" width="30" height="12" rx="2"/>
+    <rect x="690" y="289" width="30" height="12" rx="2"/>
+  </g>
+  <rect class="bx" x="140" y="314" width="680" height="14" fill="#c9ced8"/>
+  <rect class="bx" x="140" y="328" width="680" height="20" fill="#5b6270"/>
+
+  <g>
+    <path class="lead" d="M138 159 L 90 148 L 40 148"/>
+    <text class="lbl" x="34" y="145" text-anchor="end">Front panel</text>
+    <text class="lbs" x="34" y="161" text-anchor="end">smoke-grey PMMA 2 mm</text>
+
+    <path class="lead" d="M138 178 L 90 190 L 40 190"/>
+    <text class="lbl" x="34" y="187" text-anchor="end">Diffuser cap</text>
+    <text class="lbs" x="34" y="203" text-anchor="end">0.6 mm — part of the print</text>
+
+    <path class="lead" d="M138 248 H 40"/>
+    <text class="lbl" x="34" y="245" text-anchor="end">Pixel grid</text>
+    <text class="lbs" x="34" y="261" text-anchor="end">3D print, white, 8.0 mm tall</text>
+
+    <path class="lead" d="M138 307 L 90 300 L 40 300"/>
+    <text class="lbl" x="34" y="297" text-anchor="end">LED panel</text>
+    <text class="lbs" x="34" y="313" text-anchor="end">WS2812B, 8.29 mm pitch</text>
+
+    <path class="lead" d="M138 321 L 90 345 L 40 345"/>
+    <text class="lbl" x="34" y="342" text-anchor="end">Backing plate</text>
+    <text class="lbs" x="34" y="358" text-anchor="end">alu/PMMA 2 mm, flat</text>
+
+    <path class="lead" d="M138 338 L 90 385 L 40 385"/>
+    <text class="lbl" x="34" y="382" text-anchor="end">Back cover</text>
+    <text class="lbs" x="34" y="398" text-anchor="end">electronics, connectors</text>
+  </g>
+
+  <g>
+    <path class="dim" d="M860 196 V 300" marker-start="url(#ah2)" marker-end="url(#ah)"/>
+    <text class="dimt" x="868" y="252">8.0 mm grid height</text>
+    <path class="dim" d="M860 150 V 184" marker-start="url(#ah2)" marker-end="url(#ah)"/>
+    <text class="dimt" x="868" y="171">3 mm front</text>
+  </g>
+  <g>
+    <path class="dim" d="M295 372 H 445" marker-start="url(#ah2)" marker-end="url(#ah)"/>
+    <text class="dimt" x="370" y="366" text-anchor="middle">8.29 mm pitch</text>
+    <path class="lead" d="M295 300 V 376"/><path class="lead" d="M445 300 V 376"/>
+  </g>
+
+  <rect x="140" y="398" width="680" height="34" rx="8" fill="#eef2fb" stroke="#2f5fd0" stroke-width="1.5"/>
+  <text class="lbl" x="158" y="420" fill="#24479c">Diffuser cap and grid are printed together as one part.</text>
+</svg>

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 920 400" role="img" aria-label="Top view of the pixel grid">
+  <defs>
+    <style>
+      .w{fill:#dfe4ec;stroke:#2b2f38;stroke-width:1.2}
+      .c{fill:#fffdf0;stroke:#c8cedb;stroke-width:0.8}
+      .lbl2{font:600 12.5px ui-sans-serif,system-ui,sans-serif;fill:#16181d}
+      .lbs2{font:11.5px ui-sans-serif,system-ui,sans-serif;fill:#5b6270}
+      .dim2{stroke:#2f5fd0;stroke-width:1.2;fill:none}
+      .dimt2{font:600 11px ui-monospace,Menlo,monospace;fill:#2f5fd0}
+    </style>
+  <marker id="ah" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+      <path d="M0 0 L7 3.5 L0 7 z" fill="#2f5fd0"/>
+    </marker><marker id="ah2" markerWidth="7" markerHeight="7" refX="1" refY="3.5" orient="auto">
+      <path d="M7 0 L0 3.5 L7 7 z" fill="#2f5fd0"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="920" height="400" fill="#ffffff"/>
+  <!-- 4x4 section: cell 70 px = 8.29 mm, wall 8.4 px = 1.0 mm -->
+  <g transform="translate(120,60)">
+    <rect class="w" x="0" y="0" width="287" height="287"/>
+    <g class="c">
+      <rect x="8"   y="8"   width="62" height="62"/><rect x="78"  y="8"   width="62" height="62"/>
+      <rect x="148" y="8"   width="62" height="62"/><rect x="218" y="8"   width="62" height="62"/>
+      <rect x="8"   y="78"  width="62" height="62"/><rect x="78"  y="78"  width="62" height="62"/>
+      <rect x="148" y="78"  width="62" height="62"/><rect x="218" y="78"  width="62" height="62"/>
+      <rect x="8"   y="148" width="62" height="62"/><rect x="78"  y="148" width="62" height="62"/>
+      <rect x="148" y="148" width="62" height="62"/><rect x="218" y="148" width="62" height="62"/>
+      <rect x="8"   y="218" width="62" height="62"/><rect x="78"  y="218" width="62" height="62"/>
+      <rect x="148" y="218" width="62" height="62"/><rect x="218" y="218" width="62" height="62"/>
+    </g>
+    <!-- LED 5.0 mm = 48 px, centered in the 62 px cell -->
+    <g fill="#ffd24a" opacity="0.85" stroke="#c9a227" stroke-width="0.8">
+      <rect x="18" y="18" width="42" height="42" rx="3"/><rect x="88" y="18" width="42" height="42" rx="3"/>
+      <rect x="158" y="18" width="42" height="42" rx="3"/><rect x="228" y="18" width="42" height="42" rx="3"/>
+      <rect x="18" y="88" width="42" height="42" rx="3"/><rect x="88" y="88" width="42" height="42" rx="3"/>
+    </g>
+  </g>
+  <g>
+    <path class="dim2" d="M128 372 H 190" marker-start="url(#ah2)" marker-end="url(#ah)"/>
+    <text class="dimt2" x="159" y="392" text-anchor="middle">7.29 mm</text>
+    <path class="dim2" d="M194 355 V 386 L 250 386"/>
+    <circle cx="194" cy="355" r="2.5" fill="#2f5fd0"/>
+    <text class="dimt2" x="256" y="390">1.0 mm wall</text>
+    <path class="dim2" d="M120 40 H 190" marker-start="url(#ah2)" marker-end="url(#ah)"/>
+    <text class="dimt2" x="155" y="32" text-anchor="middle">8.29 mm pitch</text>
+  </g>
+  <g transform="translate(470,70)">
+    <rect x="0" y="0" width="24" height="24" rx="3" fill="#ffd24a" opacity="0.85" stroke="#c9a227"/>
+    <text class="lbl2" x="36" y="17">WS2812B, 5.0 × 5.0 mm</text>
+    <text class="lbs2" x="36" y="35">1.14 mm clearance per side</text>
+    <rect x="0" y="60" width="24" height="24" rx="3" fill="#fffdf0" stroke="#c8cedb"/>
+    <text class="lbl2" x="36" y="77">Cell 7.29 × 7.29 mm</text>
+    <text class="lbs2" x="36" y="95">the visible pixel</text>
+    <rect x="0" y="120" width="24" height="24" rx="3" fill="#dfe4ec" stroke="#2b2f38"/>
+    <text class="lbl2" x="36" y="137">Wall 1.0 mm, white</text>
+    <text class="lbs2" x="36" y="155">white, not black</text>
+    <text class="lbl2" x="0" y="205">16 × 16 overall</text>
+    <text class="lbs2" x="0" y="225">132.6 × 132.6 mm, height 8.0 mm</text>
+    <text class="lbs2" x="0" y="243">4.51 m total wall length</text>
+    <text class="lbs2" x="0" y="261">34 cm³ grid + 10 cm³ cap</text>
+  </g>
+</svg>

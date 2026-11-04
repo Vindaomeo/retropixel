@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 900 330" role="img" aria-label="Wiring powered via USB only">
+  <defs>
+    <style>
+      .box{fill:#ffffff;stroke:#2b2f38;stroke-width:2}
+      .boxalt{fill:#f2f4f8;stroke:#2b2f38;stroke-width:2}
+      .lbl{font:600 13px ui-sans-serif,system-ui,sans-serif;fill:#16181d}
+      .lbls{font:11.5px ui-sans-serif,system-ui,sans-serif;fill:#5b6270}
+      .pin{font:600 11.5px ui-monospace,Menlo,monospace;fill:#16181d}
+      .wD{stroke:#1a8a6d;stroke-width:3;fill:none;stroke-linecap:round}
+      .wP{stroke:#d0342c;stroke-width:3;fill:none;stroke-linecap:round}
+      .wG{stroke:#2b2f38;stroke-width:3;fill:none;stroke-linecap:round}
+      .led{fill:#e7ebf2;stroke:#aab3c2;stroke-width:1}
+    </style>
+  </defs>
+  <rect x="0" y="0" width="900" height="330" fill="#ffffff"/>
+
+  <!-- PC / USB -->
+  <rect class="boxalt" x="18" y="120" width="112" height="66" rx="8"/>
+  <text class="lbl" x="74" y="148" text-anchor="middle">PC</text>
+  <text class="lbls" x="74" y="166" text-anchor="middle">USB 2.0 / 3.0</text>
+  <path class="wG" d="M130 153 H 218"/>
+  <text class="lbls" x="174" y="144" text-anchor="middle">USB cable</text>
+
+  <!-- Nano -->
+  <rect class="box" x="218" y="60" width="182" height="196" rx="8"/>
+  <text class="lbl" x="309" y="86" text-anchor="middle">Arduino Nano Every</text>
+  <text class="lbls" x="309" y="104" text-anchor="middle">5 V logic — no</text>
+  <text class="lbls" x="309" y="119" text-anchor="middle">level shifter needed</text>
+  <text class="pin" x="392" y="153" text-anchor="end">D6</text>
+  <text class="pin" x="392" y="199" text-anchor="end">5V</text>
+  <text class="pin" x="392" y="238" text-anchor="end">GND</text>
+
+  <!-- Resistor -->
+  <path class="wD" d="M400 148 H 470"/>
+  <rect x="470" y="136" width="56" height="24" rx="4" fill="#ffffff" stroke="#1a8a6d" stroke-width="2"/>
+  <text class="pin" x="498" y="152" text-anchor="middle" fill="#1a8a6d">330 Ω</text>
+  <path class="wD" d="M526 148 H 640"/>
+  <text class="lbls" x="498" y="176" text-anchor="middle">close to the panel</text>
+
+  <!-- 5V + GND -->
+  <path class="wP" d="M400 194 H 640"/>
+  <path class="wG" d="M400 233 H 640"/>
+
+  <!-- Panel -->
+  <rect class="box" x="640" y="60" width="222" height="196" rx="8"/>
+  <text class="lbl" x="751" y="84" text-anchor="middle">8×8 WS2812B</text>
+  <text class="pin" x="650" y="152">DIN</text>
+  <text class="pin" x="650" y="198">+5V</text>
+  <text class="pin" x="650" y="237">GND</text>
+  <g>
+    <!-- 8x8 dot grid -->
+    <g transform="translate(700,96)">
+      <g id="rowA">
+        <circle class="led" cx="0"  cy="0" r="5.5"/><circle class="led" cx="19" cy="0" r="5.5"/>
+        <circle class="led" cx="38" cy="0" r="5.5"/><circle class="led" cx="57" cy="0" r="5.5"/>
+        <circle class="led" cx="76" cy="0" r="5.5"/><circle class="led" cx="95" cy="0" r="5.5"/>
+        <circle class="led" cx="114" cy="0" r="5.5"/><circle class="led" cx="133" cy="0" r="5.5"/>
+      </g>
+      <use xlink:href="#rowA" y="19"/><use xlink:href="#rowA" y="38"/><use xlink:href="#rowA" y="57"/>
+      <use xlink:href="#rowA" y="76"/><use xlink:href="#rowA" y="95"/><use xlink:href="#rowA" y="114"/>
+      <use xlink:href="#rowA" y="133"/>
+    </g>
+  </g>
+
+  <!-- Note -->
+  <rect x="218" y="278" width="644" height="42" rx="7" fill="#fef3e2" stroke="#b45309" stroke-width="1.5"/>
+  <text class="lbl" x="234" y="296" fill="#b45309">⚠  Only with capped brightness</text>
+  <text class="lbls" x="234" y="312" fill="#7c4a08">MX_BRIGHTNESS_DEFAULT ≤ 30 and MX_MAX_MILLIAMPS 450 must stay set.</text>
+</svg>

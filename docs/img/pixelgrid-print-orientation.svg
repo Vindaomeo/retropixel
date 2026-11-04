@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 920 300" role="img" aria-label="Print orientation: cap lies on the bed">
+  <defs>
+    <style>
+      .p3{stroke:#2b2f38;stroke-width:1.5}
+      .t3{font:600 13px ui-sans-serif,system-ui,sans-serif;fill:#16181d}
+      .s3{font:11.5px ui-sans-serif,system-ui,sans-serif;fill:#5b6270}
+      .a3{stroke:#1a8a6d;stroke-width:1.6;fill:none}
+    </style>
+    <marker id="up" markerWidth="8" markerHeight="8" refX="4" refY="1" orient="auto">
+      <path d="M0 8 L4 0 L8 8 z" fill="#1a8a6d"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="920" height="300" fill="#ffffff"/>
+  <g transform="translate(230,0)">
+    <rect fill="#8c93a1" x="0" y="210" width="440" height="16" rx="3"/>
+    <text class="s3" x="330" y="246" text-anchor="end">Print bed</text>
+    <rect x="30" y="194" width="380" height="16" fill="#eef1f6" stroke="#1a8a6d" stroke-width="2"/>
+    <text class="s3" x="20" y="205" text-anchor="end">Cap 0.6 mm</text>
+    <g fill="#f4f6fa" class="p3">
+      <rect x="30"  y="84" width="9" height="110"/><rect x="124" y="84" width="9" height="110"/>
+      <rect x="218" y="84" width="9" height="110"/><rect x="312" y="84" width="9" height="110"/>
+      <rect x="401" y="84" width="9" height="110"/>
+    </g>
+    <text class="s3" x="20" y="145" text-anchor="end">Wall 1.0 mm</text>
+    <path class="a3" d="M220 76 V 34" marker-end="url(#up)"/>
+    <text class="t3" x="220" y="24" text-anchor="middle" fill="#0f6b53">Build direction</text>
+    <path class="a3" d="M180 202 V 258" stroke-dasharray="3 3"/>
+    <text class="s3" x="180" y="276" text-anchor="middle" fill="#0f6b53">Bed side becomes the visible face</text>
+  </g>
+</svg>
