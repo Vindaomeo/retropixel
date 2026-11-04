@@ -20,6 +20,7 @@ from .protocol import (
     CMD_RAW,
     CMD_RELEASE,
     CMD_SET_BRIGHTNESS,
+    CMD_HOLD,
     ERR_NAMES,
     MSG_ACK,
     MSG_LOG,
@@ -372,3 +373,9 @@ class MatrixLink:
                 self.stats["nacks"] += 1
             elif msg.cmd == MSG_READY:
                 self.geometry = Geometry.parse(msg.payload)
+    
+    def send_hold(self) -> None:
+        """Sends "hold" command, to do nothing 
+        """
+        self._cmd_ack(CMD_HOLD)
+        self.stats["frames_sent"] += 1
