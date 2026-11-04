@@ -152,7 +152,7 @@ In [`FW/mx8_config.h`](FW/mx8_config.h):
 
 `MX_MAX_MILLIAMPS` is the harder of the two limits: before every
 `show()` FastLED computes the frame's current draw and automatically turns the
-brightness down if it would exceed it. That is why the combination "brightness 40 +
+brightness down if it would exceed it. That is why the combination "brightness 30 +
 limit 450 mA" in the factory configuration is safe even when a frame is completely
 white.
 

@@ -97,7 +97,7 @@ In `FW/mx8_config.h`:
 | Power supply 5 V / 4 A | 255 | 3800 |
 | Power supply, but the panel should stay dim | 128 | 2000 |
 
-`MX_MAX_MILLIAMPS` is the harder of the two limits: before every `show()`, FastLED calculates the frame's current draw and automatically turns the brightness down if it would exceed the limit. That's why the out-of-the-box combination "brightness 40 + limit 450 mA" is safe even when a frame is completely white.
+`MX_MAX_MILLIAMPS` is the harder of the two limits: before every `show()`, FastLED calculates the frame's current draw and automatically turns the brightness down if it would exceed the limit. That's why the out-of-the-box combination "brightness 30 + limit 450 mA" is safe even when a frame is completely white.
 
 ---
 

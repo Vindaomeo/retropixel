@@ -73,7 +73,7 @@
   #define MX_STRANDS              1
   #define LED_DATA_PIN            6
 
-  #define MX_BRIGHTNESS_DEFAULT   40
+  #define MX_BRIGHTNESS_DEFAULT   30
   #define MX_MAX_MILLIAMPS        450
 
 #elif MX_BOARD == MX_BOARD_16X32
@@ -164,7 +164,7 @@
   #define LED_DATA_PIN 6
 #endif
 #ifndef MX_BRIGHTNESS_DEFAULT
-  #define MX_BRIGHTNESS_DEFAULT 40
+  #define MX_BRIGHTNESS_DEFAULT 30
 #endif
 #ifndef MX_MAX_MILLIAMPS
   #define MX_MAX_MILLIAMPS      450
