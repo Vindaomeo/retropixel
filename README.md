@@ -1,4 +1,4 @@
-# pixeldisplay
+# retropixel
 
 RGB matrix on a microcontroller, driven by the PC over USB-CDC with a
 lean binary protocol (start token, length, data, CRC-16).
@@ -63,7 +63,7 @@ knock without killing the demo.
 ## Layout
 
 ```
-pixeldisplay/
+retropixel/
 ├── FW/                          Arduino sketch
 │   ├── FW.ino                   main program, state machine, test pattern
 │   ├── mx8_config.h             ← adjust HERE: chipset, pins, geometry
