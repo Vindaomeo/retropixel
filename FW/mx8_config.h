@@ -12,10 +12,12 @@
 #define MX_BOARD_8X8      1     // one 8x8 NeoPixel board, one data pin
 #define MX_BOARD_16X32    2     // two 8x32 panels stacked, two data pins
 #define MX_BOARD_CUSTOM  99     // everything via -D... from outside (used by tests/)
+#define MX_BOARD_16x16    3     // one 16x16 board
 
 #ifndef MX_BOARD
 // #define MX_BOARD  MX_BOARD_8X8
-#define MX_BOARD  MX_BOARD_16X32
+// #define MX_BOARD  MX_BOARD_16X32
+ #define MX_BOARD  MX_BOARD_16x16
 #endif
 
 // ---------------------------------------------------------------------------
@@ -120,6 +122,24 @@
 
 #elif MX_BOARD == MX_BOARD_CUSTOM
   // Preset nothing -- the defaults below apply, everything else comes via -D.
+
+#elif MX_BOARD == MX_BOARD_16x16
+  // Matrix 16x16 (one board)
+  #define MX_TILE_W               16
+  #define MX_TILE_H               16
+  #define MX_TILES_X              1
+  #define MX_TILES_Y              1
+
+  #define MX_TILE_VERTICAL        0   // chain runs row by row
+  #define MX_TILE_SERPENTINE      1   // every other column reversed
+  #define MX_TILE_ORIGIN          0   // first pixel top left
+  #define MX_TILE_FLIP_ALT_ROWS   0
+
+  #define MX_STRANDS              1
+  #define LED_DATA_PIN            6
+
+  #define MX_BRIGHTNESS_DEFAULT   40
+  #define MX_MAX_MILLIAMPS        1000
 
 #else
   #error "Unknown MX_BOARD -- choose MX_BOARD_8X8 or MX_BOARD_16X32"
