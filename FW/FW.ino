@@ -49,7 +49,7 @@
 // ===========================================================================
 static CRGB leds[MX_NUM_LEDS];
 
-enum State : uint8_t { ST_BOOT, ST_TESTPATTERN, ST_RUNNING, ST_DARK };
+enum State : uint8_t { ST_BOOT, ST_TESTPATTERN, ST_RUNNING, ST_DARK, ST_HOLD };
 static State    g_state          = ST_BOOT;
 static uint32_t g_stateEnteredMs = 0;
 static uint32_t g_lastReadyMs    = 0;
@@ -136,6 +136,9 @@ static void enterState(State s) {
     FastLED.show();
     g_lastReadyMs = 0;
     sendLog("dark -- pc gone");
+  } else if (s == ST_HOLD) {
+    g_lastReadyMs = 0;
+    sendLog("On hold");
   }
 }
 
@@ -248,6 +251,13 @@ static void handleCommand(uint8_t cmd, const uint8_t *data, uint16_t len) {
       sendAck(cmd);
       FastLED.clear();
       enterState(ST_TESTPATTERN);
+      break;
+
+    case CMD_HOLD:
+      if (len != 0) { sendNack(cmd, ERR_LENGTH); return; }
+      g_lastFrameMs = millis();
+      enterState(ST_HOLD);
+      sendAck(cmd);
       break;
 
     default:
@@ -387,5 +397,9 @@ void loop() {
     case ST_DARK:
       // Nothing to do -- the display stays black until a FRAME arrives.
       break;
+
+    case ST_HOLD:
+      // Nothing to do -- keep with same frame.
+    break;
   }
 }
