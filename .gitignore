@@ -52,3 +52,15 @@ $RECYCLE.BIN/
 *.log
 *.local
 captures/
+
+# --- KiCad ----------------------------------------------------------------
+# Local history (embedded git repo), automatic backups, caches, locks
+.history/
+*-backups/
+fp-info-cache
+*.kicad_prl
+*.lck
+~*.lck
+_autosave-*
+*-bak
+*.bak
