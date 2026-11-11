@@ -72,9 +72,9 @@ from mx8.link import LinkError
 # the eyes a slight tilt toward each other and makes the face look friendly
 # rather than rigid. When blinking, exactly this top row disappears and the
 # bottom one stays as an eyelid line.
-EYE_ROW_TOP, EYE_ROW_BOT = 0, 1
-EYE_L_TOP, EYE_L_BOT = (1, 2), (0, 1, 2)
-EYE_R_TOP, EYE_R_BOT = (5, 6), (5, 6, 7)
+EYE_ROW_TOP, EYE_ROW_BOT = 4, 5 #0, 1
+EYE_L_TOP, EYE_L_BOT = (5, 6), (4, 5, 6) #(1, 2), (0, 1, 2)
+EYE_R_TOP, EYE_R_BOT = (9, 10), (9, 10, 11) #(5, 6), (5, 6, 7)
 EYE_OPEN_AT = 0.5        # from here on the eye counts as open (top row on)
 
 # Mouth: EXACTLY ONE pixel per column, set hard.
@@ -86,15 +86,15 @@ EYE_OPEN_AT = 0.5        # from here on the eye counts as open (top row on)
 # intermediate step of the transition, too. Larger amplitudes tear the mouth
 # apart at the steep ends, because then two neighboring columns sit two rows
 # apart.
-MOUTH_CX = 3.5
-MOUTH_HALF = 3.5
-MOUTH_Y = 5.5
-MOUTH_AMP = 2.5
+MOUTH_CX = 7.5 #3.5
+MOUTH_HALF = 7.5 #3.5
+MOUTH_Y = 10 #5.5
+MOUTH_AMP = 3.5 # 2.5
 
 # Tear: a single pixel that falls through the empty rows in column 0.
-TEAR_X = 0
-TEAR_Y0 = 2
-TEAR_FALL = 4
+TEAR_X = 4 #0
+TEAR_Y0 = 6 #2
+TEAR_FALL = 3 #4
 TEAR_COL = (40, 130, 255)
 
 # --- Hinted face circle ----------------------------------------------------

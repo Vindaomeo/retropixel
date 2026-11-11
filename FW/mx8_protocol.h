@@ -32,6 +32,7 @@
 // measuring the panel wiring (script/mapcheck.py), not for images.
 // Payload: START_LO START_HI, then 3*n bytes RGB. Everything else goes black.
 #define CMD_RAW             0x07
+#define CMD_HOLD            0x08
 
 // ---- Commands Nano -> PC (bit 7 set) --------------------------------------
 #define MSG_READY           0x81
