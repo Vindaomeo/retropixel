@@ -27,6 +27,7 @@ CMD_CLEAR = 0x04
 CMD_HELLO = 0x05
 CMD_RELEASE = 0x06
 CMD_RAW = 0x07  # straight into the chain, no mapping (script/mapcheck.py)
+CMD_HOLD = 0x08
 
 # Nano -> PC
 MSG_READY = 0x81
